@@ -1,0 +1,78 @@
+{
+  "name": "Cron - Todo Reminders (8AM & 9PM)",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [{ "field": "cronExpression", "expression": "0 8,21 * * *" }]
+        }
+      },
+      "id": "schedule",
+      "name": "8AM and 9PM Daily",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [220, 300]
+    },
+    {
+      "parameters": {
+        "operation": "read",
+        "documentId": { "__rl": true, "mode": "id", "value": "={{ $env.SPREADSHEET_ID }}" },
+        "sheetName": { "__rl": true, "mode": "name", "value": "Todos" },
+        "options": {}
+      },
+      "id": "read-todos",
+      "name": "Read Todos",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [440, 300],
+      "credentials": {
+        "googleSheetsOAuth2Api": { "id": "google-sheets", "name": "Google Sheets" }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const todos = $input.all().map(t => t.json);\nconst now = new Date();\nconst today = now.toISOString().split('T')[0];\nconst hour = now.getHours();\nconst isMorning = hour < 12;\n\nconst pending = todos.filter(t => t.status === 'pending');\nconst todayCompleted = todos.filter(t => t.status === 'completed' && t.completed_at && t.completed_at.startsWith(today));\nconst yesterdayStr = new Date(now - 86400000).toISOString().split('T')[0];\nconst yesterdayCompleted = todos.filter(t => t.status === 'completed' && t.completed_at && t.completed_at.startsWith(yesterdayStr));\n\nlet msg = '';\n\nif (isMorning) {\n  // Morning message\n  msg = `\\ud83c\\udf05 *Good Morning, Vishal!*\\n\\n`;\n  \n  if (yesterdayCompleted.length > 0) {\n    msg += `\\u2705 ${yesterdayCompleted.length} tasks completed yesterday\\n\\n`;\n  }\n  \n  if (pending.length > 0) {\n    msg += `\\ud83d\\udccb *Today's Tasks (${pending.length}):*\\n`;\n    pending.sort((a, b) => {\n      const p = { high: 0, medium: 1, low: 2 };\n      return (p[a.priority] || 1) - (p[b.priority] || 1);\n    });\n    pending.forEach((t, i) => {\n      const icon = t.priority === 'high' ? '\\ud83d\\udd34' : t.priority === 'medium' ? '\\ud83d\\udfe1' : '\\ud83d\\udfe2';\n      msg += `${i + 1}. ${icon} ${t.task}\\n`;\n    });\n    msg += `\\nLet's make today count! \\ud83d\\udcaa`;\n  } else {\n    msg += `No pending tasks! Time to plan your day. \\ud83c\\udfaf`;\n  }\n} else {\n  // Evening recap\n  msg = `\\ud83c\\udf19 *Evening Recap*\\n\\n`;\n  \n  if (todayCompleted.length > 0) {\n    msg += `\\u2705 *Completed today (${todayCompleted.length}):*\\n`;\n    todayCompleted.forEach(t => {\n      msg += `  \\u2713 ${t.task}\\n`;\n    });\n    msg += `\\n`;\n  }\n  \n  if (pending.length > 0) {\n    msg += `\\u23f3 *Still pending (${pending.length}):*\\n`;\n    pending.forEach(t => {\n      msg += `  \\u25cb ${t.task}\\n`;\n    });\n    msg += `\\n_These will carry forward to tomorrow._\\n`;\n  }\n  \n  const total = todayCompleted.length + pending.length;\n  const completionRate = total > 0 ? Math.round(todayCompleted.length / total * 100) : 0;\n  \n  if (completionRate >= 80) msg += `\\n\\ud83c\\udf1f Great day! ${completionRate}% completion rate!`;\n  else if (completionRate >= 50) msg += `\\n\\ud83d\\udc4d Decent progress! ${completionRate}% done.`;\n  else if (total > 0) msg += `\\n\\ud83d\\udcaa Tomorrow is a fresh start! ${completionRate}% today.`;\n}\n\nreturn [{ json: { message: msg } }];"
+      },
+      "id": "build-message",
+      "name": "Build Reminder Message",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [660, 300]
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $env.TELEGRAM_CHAT_ID }}",
+        "text": "={{ $json.message }}",
+        "additionalFields": { "parse_mode": "Markdown" }
+      },
+      "id": "send-reminder",
+      "name": "Send Todo Reminder",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [880, 300],
+      "credentials": {
+        "telegramApi": { "id": "telegram-bot", "name": "Mitra Telegram Bot" }
+      }
+    }
+  ],
+  "connections": {
+    "8AM and 9PM Daily": {
+      "main": [
+        [{ "node": "Read Todos", "type": "main", "index": 0 }]
+      ]
+    },
+    "Read Todos": {
+      "main": [
+        [{ "node": "Build Reminder Message", "type": "main", "index": 0 }]
+      ]
+    },
+    "Build Reminder Message": {
+      "main": [
+        [{ "node": "Send Todo Reminder", "type": "main", "index": 0 }]
+      ]
+    }
+  },
+  "settings": { "executionOrder": "v1" },
+  "tags": [{ "name": "mitra-cron" }],
+  "active": false
+}

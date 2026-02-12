@@ -1,0 +1,209 @@
+{
+  "name": "08 - Todo Agent",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "workflow-trigger",
+      "name": "When Called By Another Workflow",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1,
+      "position": [220, 300]
+    },
+    {
+      "parameters": {
+        "operation": "read",
+        "documentId": { "__rl": true, "mode": "id", "value": "={{ $env.SPREADSHEET_ID }}" },
+        "sheetName": { "__rl": true, "mode": "name", "value": "Todos" },
+        "options": {}
+      },
+      "id": "read-todos",
+      "name": "Read Todos",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [440, 300],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "google-sheets",
+          "name": "Google Sheets"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const query = $('When Called By Another Workflow').first().json.query.toLowerCase();\nconst todos = $('Read Todos').all().map(t => t.json);\nconst now = new Date();\nconst today = now.toISOString().split('T')[0];\n\n// Determine intent\nlet intent = 'list';\nlet taskText = '';\nlet priority = 'medium';\n\nif (query.match(/^(add|create|new|todo:)/i)) {\n  intent = 'add';\n  taskText = query.replace(/^(add|create|new|todo:?)\\s*(todo:?)?\\s*/i, '').trim();\n  if (query.includes('high') || query.includes('urgent') || query.includes('important')) priority = 'high';\n  if (query.includes('low')) priority = 'low';\n} else if (query.match(/^(done|complete|finish|mark)/i)) {\n  intent = 'complete';\n  taskText = query.replace(/^(done|complete|finish|mark)\\s*(done|complete|as\\s+done)?\\s*(with|:)?\\s*/i, '').trim();\n} else if (query.match(/^(delete|remove)/i)) {\n  intent = 'delete';\n  taskText = query.replace(/^(delete|remove)\\s*(todo:?)?\\s*/i, '').trim();\n} else if (query.match(/(pending|today|list|show|what)/i)) {\n  intent = 'list';\n}\n\n// Filter today's todos\nconst todayTodos = todos.filter(t => t.date === today || t.status === 'pending');\nconst pending = todayTodos.filter(t => t.status === 'pending');\nconst completed = todayTodos.filter(t => t.status === 'completed' && t.date === today);\n\nreturn [{\n  json: {\n    intent,\n    taskText,\n    priority,\n    today,\n    pending_count: pending.length,\n    completed_count: completed.length,\n    pending_tasks: pending,\n    completed_tasks: completed,\n    all_todos: todos\n  }\n}];"
+      },
+      "id": "parse-intent",
+      "name": "Parse Todo Intent",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [660, 300]
+    },
+    {
+      "parameters": {
+        "rules": {
+          "rules": [
+            {
+              "outputKey": "add",
+              "conditions": {
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.intent }}",
+                    "rightValue": "add",
+                    "operator": { "type": "string", "operation": "equals" }
+                  }
+                ]
+              }
+            },
+            {
+              "outputKey": "complete",
+              "conditions": {
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.intent }}",
+                    "rightValue": "complete",
+                    "operator": { "type": "string", "operation": "equals" }
+                  }
+                ]
+              }
+            },
+            {
+              "outputKey": "list",
+              "conditions": {
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.intent }}",
+                    "rightValue": "list",
+                    "operator": { "type": "string", "operation": "equals" }
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        "options": { "fallbackOutput": "extra" }
+      },
+      "id": "intent-switch",
+      "name": "Route by Intent",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3,
+      "position": [880, 300]
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": { "__rl": true, "mode": "id", "value": "={{ $env.SPREADSHEET_ID }}" },
+        "sheetName": { "__rl": true, "mode": "name", "value": "Todos" },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "todo_id": "=todo_{{ Date.now() }}",
+            "date": "={{ $json.today }}",
+            "task": "={{ $json.taskText }}",
+            "priority": "={{ $json.priority }}",
+            "status": "pending",
+            "due_date": "={{ $json.today }}",
+            "completed_at": "",
+            "category": "personal"
+          }
+        },
+        "options": {}
+      },
+      "id": "add-todo",
+      "name": "Add Todo",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [1100, 160],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "google-sheets",
+          "name": "Google Sheets"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "add-response",
+              "name": "response",
+              "value": "=✅ *Todo Added!*\n\n📋 {{ $json.taskText }}\n📌 Priority: {{ $json.priority }}\n📅 Due: {{ $json.today }}\n\nPending tasks: {{ $json.pending_count + 1 }}",
+              "type": "string"
+            }
+          ]
+        }
+      },
+      "id": "add-response",
+      "name": "Add Response",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [1320, 160]
+    },
+    {
+      "parameters": {
+        "jsCode": "const pending = $input.first().json.pending_tasks || [];\nconst completed = $input.first().json.completed_tasks || [];\n\nlet msg = `📋 *Today's Tasks*\\n\\n`;\n\nif (pending.length > 0) {\n  msg += `*Pending (${pending.length}):*\\n`;\n  pending.forEach((t, i) => {\n    const icon = t.priority === 'high' ? '🔴' : t.priority === 'medium' ? '🟡' : '🟢';\n    msg += `${i+1}. ${icon} ${t.task}\\n`;\n  });\n} else {\n  msg += `*No pending tasks!* 🎉\\n`;\n}\n\nif (completed.length > 0) {\n  msg += `\\n*Completed today (${completed.length}):*\\n`;\n  completed.forEach((t, i) => {\n    msg += `  ✅ ${t.task}\\n`;\n  });\n}\n\nmsg += `\\n_Use \"add todo: <task>\" to add new tasks_`;\n\nreturn [{ json: { response: msg } }];"
+      },
+      "id": "list-response",
+      "name": "List Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1100, 440]
+    },
+    {
+      "parameters": {
+        "model": "gemini-2.5-flash",
+        "options": {
+          "temperature": 0.3,
+          "maxOutputTokens": 512
+        },
+        "messages": {
+          "values": [
+            {
+              "content": "The user wants to mark a task as complete. Find the best matching task from the pending list.\n\nUser said: {{ $json.taskText }}\n\nPending tasks:\n{{ $json.pending_tasks.map((t, i) => `${i}: ${t.task} (id: ${t.todo_id})`).join('\\n') }}\n\nReturn ONLY the todo_id of the best match, nothing else."
+            }
+          ]
+        }
+      },
+      "id": "match-task",
+      "name": "Match Task",
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1,
+      "position": [1100, 300],
+      "credentials": {
+        "googleGeminiApi": { "id": "gemini-api", "name": "Gemini API" }
+      }
+    }
+  ],
+  "connections": {
+    "When Called By Another Workflow": {
+      "main": [
+        [{ "node": "Read Todos", "type": "main", "index": 0 }]
+      ]
+    },
+    "Read Todos": {
+      "main": [
+        [{ "node": "Parse Todo Intent", "type": "main", "index": 0 }]
+      ]
+    },
+    "Parse Todo Intent": {
+      "main": [
+        [{ "node": "Route by Intent", "type": "main", "index": 0 }]
+      ]
+    },
+    "Route by Intent": {
+      "main": [
+        [{ "node": "Add Todo", "type": "main", "index": 0 }],
+        [{ "node": "Match Task", "type": "main", "index": 0 }],
+        [{ "node": "List Response", "type": "main", "index": 0 }]
+      ]
+    },
+    "Add Todo": {
+      "main": [
+        [{ "node": "Add Response", "type": "main", "index": 0 }]
+      ]
+    }
+  },
+  "settings": { "executionOrder": "v1" },
+  "tags": [{ "name": "mitra-agent" }],
+  "active": false
+}

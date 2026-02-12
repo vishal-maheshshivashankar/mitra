@@ -1,0 +1,131 @@
+{
+  "name": "06 - Health Agent",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "workflow-trigger",
+      "name": "When Called By Another Workflow",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1,
+      "position": [220, 300]
+    },
+    {
+      "parameters": {
+        "url": "={{ $env.HEALTH_BRIDGE_URL || 'http://health-bridge:8085' }}/health/summary",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {
+          "timeout": 10000
+        }
+      },
+      "id": "get-health-summary",
+      "name": "Get Health Summary",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [440, 200]
+    },
+    {
+      "parameters": {
+        "url": "={{ $env.HEALTH_BRIDGE_URL || 'http://health-bridge:8085' }}/health/heart-rate",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {
+          "timeout": 10000
+        }
+      },
+      "id": "get-heart-rate",
+      "name": "Get Heart Rate",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [440, 400]
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "mergeByFields": {},
+        "options": {}
+      },
+      "id": "merge-health",
+      "name": "Merge Health Data",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3,
+      "position": [660, 300]
+    },
+    {
+      "parameters": {
+        "model": "gemini-2.5-flash",
+        "options": {
+          "temperature": 0.4,
+          "maxOutputTokens": 2048
+        },
+        "messages": {
+          "values": [
+            {
+              "content": "You are Mitra's Health Monitor. Analyze the user's health data from Apple Watch.\n\nUser query: {{ $('When Called By Another Workflow').first().json.query }}\n\nHealth Summary:\n{{ $('Get Health Summary').first().json }}\n\nHeart Rate Data:\n{{ $('Get Heart Rate').first().json }}\n\nAnalysis guidelines:\n1. Check vital signs against healthy ranges:\n   - Resting HR: 60-100 bpm (ideal: 60-80)\n   - HRV: >40ms is good, <20ms needs attention\n   - SpO2: >95% normal, <90% critical\n   - Steps: target 10,000/day\n   - Sleep: target 7.5 hours\n   - Water: target 8 glasses (3L)\n\n2. Alert on anomalies:\n   - Sudden HR spikes or drops\n   - Unusually low HRV (stress indicator)\n   - Poor sleep quality\n   - Low activity days\n\n3. Recommendations:\n   - Hydration reminders\n   - Activity suggestions\n   - Sleep hygiene tips\n   - Stress management if HRV is low\n\nFormat for Telegram. Use health-related emojis for clarity."
+            }
+          ]
+        }
+      },
+      "id": "health-analyzer",
+      "name": "AI Health Analysis",
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1,
+      "position": [880, 300],
+      "credentials": {
+        "googleGeminiApi": { "id": "gemini-api", "name": "Gemini API" }
+      }
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "set-response",
+              "name": "response",
+              "value": "={{ $json.text }}",
+              "type": "string"
+            }
+          ]
+        }
+      },
+      "id": "format-response",
+      "name": "Format Response",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [1100, 300]
+    }
+  ],
+  "connections": {
+    "When Called By Another Workflow": {
+      "main": [
+        [
+          { "node": "Get Health Summary", "type": "main", "index": 0 },
+          { "node": "Get Heart Rate", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Get Health Summary": {
+      "main": [
+        [{ "node": "Merge Health Data", "type": "main", "index": 0 }]
+      ]
+    },
+    "Get Heart Rate": {
+      "main": [
+        [{ "node": "Merge Health Data", "type": "main", "index": 1 }]
+      ]
+    },
+    "Merge Health Data": {
+      "main": [
+        [{ "node": "AI Health Analysis", "type": "main", "index": 0 }]
+      ]
+    },
+    "AI Health Analysis": {
+      "main": [
+        [{ "node": "Format Response", "type": "main", "index": 0 }]
+      ]
+    }
+  },
+  "settings": { "executionOrder": "v1" },
+  "tags": [{ "name": "mitra-agent" }],
+  "active": false
+}

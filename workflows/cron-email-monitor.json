@@ -1,0 +1,223 @@
+{
+  "name": "Cron - Email Monitor (15min)",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [{ "field": "minutes", "minutesInterval": 15 }]
+        }
+      },
+      "id": "schedule",
+      "name": "Every 15 Minutes",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [220, 300]
+    },
+    {
+      "parameters": {
+        "resource": "message",
+        "operation": "getAll",
+        "returnAll": false,
+        "limit": 10,
+        "filters": {
+          "q": "is:unread newer_than:1h -category:promotions -category:social"
+        },
+        "options": {}
+      },
+      "id": "gmail-1",
+      "name": "Gmail Account 1",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [440, 200],
+      "credentials": {
+        "gmailOAuth2": { "id": "gmail-oauth-1", "name": "Gmail - vishal.maheshshivashankar" }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "message",
+        "operation": "getAll",
+        "returnAll": false,
+        "limit": 10,
+        "filters": {
+          "q": "is:unread newer_than:1h -category:promotions -category:social"
+        },
+        "options": {}
+      },
+      "id": "gmail-2",
+      "name": "Gmail Account 2",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [440, 400],
+      "credentials": {
+        "gmailOAuth2": { "id": "gmail-oauth-2", "name": "Gmail - vishalre411" }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "mergeByFields": {},
+        "options": {}
+      },
+      "id": "merge",
+      "name": "Merge",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3,
+      "position": [660, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {},
+          "conditions": [
+            {
+              "leftValue": "={{ $json }}",
+              "rightValue": "",
+              "operator": { "type": "array", "operation": "notEmpty" }
+            }
+          ]
+        }
+      },
+      "id": "has-emails",
+      "name": "Has New Emails?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [860, 300]
+    },
+    {
+      "parameters": {
+        "model": "gemini-2.5-flash",
+        "options": { "temperature": 0.2, "maxOutputTokens": 1024 },
+        "messages": {
+          "values": [
+            {
+              "content": "Analyze these emails for security threats and priority. For EACH email:\n\n1. Check for MALICIOUS indicators:\n   - Phishing links (mismatched URLs)\n   - Suspicious sender domains\n   - Urgency/fear tactics (\"act now\", \"account suspended\")\n   - Unusual attachment types (.exe, .scr, .js)\n   - Impersonation attempts\n   - Financial scam patterns\n\n2. Classify priority: high/medium/low\n3. Classify category: finance/personal/work/spam/malicious\n\nEmails:\n{{ $json }}\n\nIf ANY email is malicious, start response with: MALICIOUS_DETECTED\nOtherwise start with: ALL_CLEAR\n\nThen provide a brief summary of important emails only."
+            }
+          ]
+        }
+      },
+      "id": "classify",
+      "name": "AI Classify",
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1,
+      "position": [1080, 300],
+      "credentials": {
+        "googleGeminiApi": { "id": "gemini-api", "name": "Gemini API" }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": false },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.text }}",
+              "rightValue": "MALICIOUS_DETECTED",
+              "operator": { "type": "string", "operation": "startsWith" }
+            }
+          ]
+        }
+      },
+      "id": "is-malicious",
+      "name": "Is Malicious?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [1300, 300]
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $env.TELEGRAM_CHAT_ID }}",
+        "text": "=\u26a0\ufe0f *SECURITY ALERT*\n\nMalicious email detected!\n\n{{ $json.text.replace('MALICIOUS_DETECTED\\n', '') }}",
+        "additionalFields": { "parse_mode": "Markdown" }
+      },
+      "id": "alert-malicious",
+      "name": "Alert: Malicious Email",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [1520, 200],
+      "credentials": {
+        "telegramApi": { "id": "telegram-bot", "name": "Mitra Telegram Bot" }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": { "__rl": true, "mode": "id", "value": "={{ $env.SPREADSHEET_ID }}" },
+        "sheetName": { "__rl": true, "mode": "name", "value": "Email_Log" },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "email_id": "=scan_{{ Date.now() }}",
+            "account": "both",
+            "date": "={{ new Date().toISOString() }}",
+            "sender": "monitor",
+            "subject": "Scheduled scan",
+            "category": "={{ $json.text.startsWith('MALICIOUS') ? 'malicious' : 'scan' }}",
+            "priority": "={{ $json.text.startsWith('MALICIOUS') ? 'high' : 'low' }}",
+            "is_malicious": "={{ $json.text.startsWith('MALICIOUS') }}",
+            "action_taken": "={{ $json.text.startsWith('MALICIOUS') ? 'alert_sent' : 'logged' }}"
+          }
+        },
+        "options": {}
+      },
+      "id": "log-scan",
+      "name": "Log to Sheets",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [1520, 400],
+      "credentials": {
+        "googleSheetsOAuth2Api": { "id": "google-sheets", "name": "Google Sheets" }
+      }
+    }
+  ],
+  "connections": {
+    "Every 15 Minutes": {
+      "main": [
+        [
+          { "node": "Gmail Account 1", "type": "main", "index": 0 },
+          { "node": "Gmail Account 2", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Gmail Account 1": {
+      "main": [
+        [{ "node": "Merge", "type": "main", "index": 0 }]
+      ]
+    },
+    "Gmail Account 2": {
+      "main": [
+        [{ "node": "Merge", "type": "main", "index": 1 }]
+      ]
+    },
+    "Merge": {
+      "main": [
+        [{ "node": "Has New Emails?", "type": "main", "index": 0 }]
+      ]
+    },
+    "Has New Emails?": {
+      "main": [
+        [{ "node": "AI Classify", "type": "main", "index": 0 }],
+        []
+      ]
+    },
+    "AI Classify": {
+      "main": [
+        [{ "node": "Is Malicious?", "type": "main", "index": 0 }]
+      ]
+    },
+    "Is Malicious?": {
+      "main": [
+        [{ "node": "Alert: Malicious Email", "type": "main", "index": 0 }],
+        [{ "node": "Log to Sheets", "type": "main", "index": 0 }]
+      ]
+    },
+    "Alert: Malicious Email": {
+      "main": [
+        [{ "node": "Log to Sheets", "type": "main", "index": 0 }]
+      ]
+    }
+  },
+  "settings": { "executionOrder": "v1" },
+  "tags": [{ "name": "mitra-cron" }],
+  "active": false
+}

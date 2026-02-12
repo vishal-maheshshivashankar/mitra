@@ -1,0 +1,44 @@
+{
+  "weight": {
+    "current_kg": null,
+    "target_kg": null,
+    "weekly_change_kg": -0.5,
+    "track_since": null
+  },
+  "daily_targets": {
+    "calories": 2000,
+    "protein_g": 120,
+    "carbs_g": 250,
+    "fat_g": 65,
+    "sugar_g": 30,
+    "fiber_g": 30,
+    "water_glasses": 8,
+    "water_ml": 3000,
+    "steps": 10000,
+    "active_minutes": 30,
+    "sleep_hours": 7.5
+  },
+  "fitness": {
+    "weekly_runs": 3,
+    "weekly_run_km": 15,
+    "weekly_workouts": 5,
+    "rest_days_per_week": 2,
+    "target_resting_hr": 60,
+    "target_vo2max": null
+  },
+  "alerts": {
+    "water_reminder_interval_hours": 1,
+    "water_reminder_start_hour": 8,
+    "water_reminder_end_hour": 22,
+    "heart_rate_high_threshold": 100,
+    "heart_rate_low_threshold": 45,
+    "sedentary_alert_minutes": 60
+  },
+  "meal_types": ["breakfast", "morning_snack", "lunch", "evening_snack", "dinner", "late_snack"],
+  "recovery_metrics": {
+    "good_hrv_threshold": 40,
+    "poor_hrv_threshold": 20,
+    "good_resting_hr_threshold": 65,
+    "elevated_resting_hr_threshold": 80
+  }
+}

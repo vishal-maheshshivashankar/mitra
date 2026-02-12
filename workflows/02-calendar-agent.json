@@ -1,0 +1,133 @@
+{
+  "name": "02 - Calendar Agent",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "workflow-trigger",
+      "name": "When Called By Another Workflow",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1,
+      "position": [220, 300]
+    },
+    {
+      "parameters": {
+        "agent": "toolsAgent",
+        "promptType": "define",
+        "text": "={{ $json.query }}",
+        "options": {
+          "systemMessage": "You are Mitra's Calendar Agent. You manage Google Calendar for the user.\n\nCapabilities:\n- Create events with title, date, time, duration, description\n- List upcoming events for today, this week, or custom range\n- Update or delete existing events\n- Check for scheduling conflicts\n- Set reminders\n\nDate format: Use ISO 8601 (YYYY-MM-DDTHH:MM:SS)\nTimezone: Asia/Kolkata (IST)\n\nWhen creating events:\n- Parse natural language dates ('next Tuesday at 3pm', 'tomorrow morning')\n- Default duration: 1 hour if not specified\n- Always confirm the created event details\n\nWhen listing events:\n- Show date, time, title, and duration\n- Group by day if showing multiple days\n- Highlight conflicts",
+          "maxIterations": 5
+        }
+      },
+      "id": "calendar-agent",
+      "name": "Calendar AI Agent",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 1.7,
+      "position": [480, 300]
+    },
+    {
+      "parameters": {
+        "model": "gemini-2.5-flash",
+        "options": { "temperature": 0.3 }
+      },
+      "id": "gemini",
+      "name": "Gemini",
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1,
+      "position": [480, 520],
+      "credentials": {
+        "googleGeminiApi": { "id": "gemini-api", "name": "Gemini API" }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "getAll",
+        "calendar": "primary",
+        "returnAll": false,
+        "limit": 20,
+        "options": {
+          "timeMin": "={{ new Date().toISOString() }}",
+          "timeMax": "={{ new Date(Date.now() + 7*24*60*60*1000).toISOString() }}"
+        }
+      },
+      "id": "get-events",
+      "name": "Get Events",
+      "type": "n8n-nodes-base.googleCalendar",
+      "typeVersion": 1,
+      "position": [380, 520],
+      "credentials": {
+        "googleCalendarOAuth2Api": {
+          "id": "google-calendar",
+          "name": "Google Calendar"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "create",
+        "calendar": "primary",
+        "additionalFields": {}
+      },
+      "id": "create-event",
+      "name": "Create Event",
+      "type": "n8n-nodes-base.googleCalendar",
+      "typeVersion": 1,
+      "position": [580, 520],
+      "credentials": {
+        "googleCalendarOAuth2Api": {
+          "id": "google-calendar",
+          "name": "Google Calendar"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "set-response",
+              "name": "response",
+              "value": "={{ $json.output }}",
+              "type": "string"
+            }
+          ]
+        }
+      },
+      "id": "format-response",
+      "name": "Format Response",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [740, 300]
+    }
+  ],
+  "connections": {
+    "When Called By Another Workflow": {
+      "main": [
+        [{ "node": "Calendar AI Agent", "type": "main", "index": 0 }]
+      ]
+    },
+    "Calendar AI Agent": {
+      "main": [
+        [{ "node": "Format Response", "type": "main", "index": 0 }]
+      ]
+    },
+    "Gemini": {
+      "ai_languageModel": [
+        [{ "node": "Calendar AI Agent", "type": "ai_languageModel", "index": 0 }]
+      ]
+    },
+    "Get Events": {
+      "ai_tool": [
+        [{ "node": "Calendar AI Agent", "type": "ai_tool", "index": 0 }]
+      ]
+    },
+    "Create Event": {
+      "ai_tool": [
+        [{ "node": "Calendar AI Agent", "type": "ai_tool", "index": 0 }]
+      ]
+    }
+  },
+  "settings": { "executionOrder": "v1" },
+  "tags": [{ "name": "mitra-agent" }],
+  "active": false
+}

@@ -1,0 +1,148 @@
+{
+  "name": "09 - Fitness Agent",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "workflow-trigger",
+      "name": "When Called By Another Workflow",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1,
+      "position": [220, 300]
+    },
+    {
+      "parameters": {
+        "url": "={{ $env.HEALTH_BRIDGE_URL || 'http://health-bridge:8085' }}/health/workouts",
+        "options": { "timeout": 10000 }
+      },
+      "id": "get-workouts",
+      "name": "Get Workouts",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [440, 200]
+    },
+    {
+      "parameters": {
+        "url": "={{ $env.HEALTH_BRIDGE_URL || 'http://health-bridge:8085' }}/health/latest",
+        "options": { "timeout": 10000 }
+      },
+      "id": "get-vitals",
+      "name": "Get Latest Vitals",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [440, 400]
+    },
+    {
+      "parameters": {
+        "operation": "read",
+        "documentId": { "__rl": true, "mode": "id", "value": "={{ $env.SPREADSHEET_ID }}" },
+        "sheetName": { "__rl": true, "mode": "name", "value": "Meals" },
+        "options": {}
+      },
+      "id": "read-meals",
+      "name": "Read Today Meals",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [440, 560],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "google-sheets",
+          "name": "Google Sheets"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "mergeByFields": {},
+        "options": {}
+      },
+      "id": "merge-data",
+      "name": "Merge All Data",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3,
+      "position": [700, 300]
+    },
+    {
+      "parameters": {
+        "model": "gemini-2.5-flash",
+        "options": {
+          "temperature": 0.5,
+          "maxOutputTokens": 2048
+        },
+        "messages": {
+          "values": [
+            {
+              "content": "You are Mitra's Fitness Coach. Analyze workout data and provide personalized fitness advice.\n\nUser query: {{ $('When Called By Another Workflow').first().json.query }}\n\nWorkout Data:\n{{ $('Get Workouts').first().json }}\n\nCurrent Vitals:\n{{ $('Get Latest Vitals').first().json }}\n\nToday's Nutrition:\n{{ $('Read Today Meals').all().map(m => `${m.json.meal_type}: ${m.json.calories}kcal, ${m.json.protein_g}g protein`).join('\\n') }}\n\nAnalysis guidelines:\n\n1. **Workout Summary** (if recent workout):\n   - Distance, pace, duration, calories burned\n   - HR zones breakdown (recovery <60%, fat burn 60-70%, cardio 70-80%, peak 80%+)\n   - Performance vs previous similar workouts\n\n2. **Recovery Assessment**:\n   - Based on HRV: >40ms = good recovery, 20-40ms = moderate, <20ms = needs rest\n   - Based on resting HR: lower than baseline = recovered\n   - Sleep quality impact\n   - Recommendation: ready for hard workout / easy day / rest day\n\n3. **Nutrition Recommendations**:\n   - Post-workout protein window (30g within 1 hour)\n   - Calorie deficit/surplus based on workout + daily intake\n   - Hydration based on workout intensity\n   - Specific food suggestions\n\n4. **Next Workout Suggestion**:\n   - Based on recovery status\n   - Progressive overload principle\n   - Weekly balance (don't skip rest days)\n   - Suggested: type, distance/duration, target pace/effort\n\nFitness goals: 3 runs/week, 15km/week total, 10K steps daily.\nFormat for Telegram with emojis for visual clarity."
+            }
+          ]
+        }
+      },
+      "id": "fitness-analyzer",
+      "name": "AI Fitness Analysis",
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1,
+      "position": [940, 300],
+      "credentials": {
+        "googleGeminiApi": { "id": "gemini-api", "name": "Gemini API" }
+      }
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "set-response",
+              "name": "response",
+              "value": "={{ $json.text }}",
+              "type": "string"
+            }
+          ]
+        }
+      },
+      "id": "format-response",
+      "name": "Format Response",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [1180, 300]
+    }
+  ],
+  "connections": {
+    "When Called By Another Workflow": {
+      "main": [
+        [
+          { "node": "Get Workouts", "type": "main", "index": 0 },
+          { "node": "Get Latest Vitals", "type": "main", "index": 0 },
+          { "node": "Read Today Meals", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Get Workouts": {
+      "main": [
+        [{ "node": "Merge All Data", "type": "main", "index": 0 }]
+      ]
+    },
+    "Get Latest Vitals": {
+      "main": [
+        [{ "node": "Merge All Data", "type": "main", "index": 1 }]
+      ]
+    },
+    "Read Today Meals": {
+      "main": [
+        [{ "node": "Merge All Data", "type": "main", "index": 0 }]
+      ]
+    },
+    "Merge All Data": {
+      "main": [
+        [{ "node": "AI Fitness Analysis", "type": "main", "index": 0 }]
+      ]
+    },
+    "AI Fitness Analysis": {
+      "main": [
+        [{ "node": "Format Response", "type": "main", "index": 0 }]
+      ]
+    }
+  },
+  "settings": { "executionOrder": "v1" },
+  "tags": [{ "name": "mitra-agent" }],
+  "active": false
+}

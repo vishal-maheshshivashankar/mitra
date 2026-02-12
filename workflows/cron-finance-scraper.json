@@ -1,0 +1,259 @@
+{
+  "name": "Cron - Finance Email Scraper (30min)",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [{ "field": "minutes", "minutesInterval": 30 }]
+        }
+      },
+      "id": "schedule",
+      "name": "Every 30 Minutes",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [220, 300]
+    },
+    {
+      "parameters": {
+        "resource": "message",
+        "operation": "getAll",
+        "returnAll": false,
+        "limit": 15,
+        "filters": {
+          "q": "newer_than:1h (debited OR credited OR \"UPI txn\" OR \"payment successful\" OR \"transaction alert\" OR \"card used\" OR \"purchase of\" OR \"amount of Rs\") -offer -discount -cashback -\"pre-approved\""
+        },
+        "options": {}
+      },
+      "id": "gmail-finance-1",
+      "name": "Gmail Finance Emails (Acc 1)",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [440, 200],
+      "credentials": {
+        "gmailOAuth2": { "id": "gmail-oauth-1", "name": "Gmail - vishal.maheshshivashankar" }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "message",
+        "operation": "getAll",
+        "returnAll": false,
+        "limit": 15,
+        "filters": {
+          "q": "newer_than:1h (debited OR credited OR \"UPI txn\" OR \"payment successful\" OR \"transaction alert\" OR \"card used\" OR \"purchase of\" OR \"amount of Rs\") -offer -discount -cashback -\"pre-approved\""
+        },
+        "options": {}
+      },
+      "id": "gmail-finance-2",
+      "name": "Gmail Finance Emails (Acc 2)",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [440, 400],
+      "credentials": {
+        "gmailOAuth2": { "id": "gmail-oauth-2", "name": "Gmail - vishalre411" }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "mergeByFields": {},
+        "options": {}
+      },
+      "id": "merge",
+      "name": "Merge Emails",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3,
+      "position": [660, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "conditions": [
+            {
+              "leftValue": "={{ $json }}",
+              "rightValue": "",
+              "operator": { "type": "array", "operation": "notEmpty" }
+            }
+          ]
+        }
+      },
+      "id": "has-emails",
+      "name": "Has Finance Emails?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [860, 300]
+    },
+    {
+      "parameters": {
+        "model": "gemini-2.5-flash",
+        "options": { "temperature": 0.1, "maxOutputTokens": 4096 },
+        "messages": {
+          "values": [
+            {
+              "content": "Extract financial transactions from these emails. For EACH transaction found, return a JSON array.\n\nEmails:\n{{ $json }}\n\nFor each transaction extract:\n- date: YYYY-MM-DD format\n- amount: numeric value (no currency symbol)\n- merchant: merchant/payee name\n- category: one of [loan, savings, insurances, mf_sip, stocks, home, bills, other, food, transport, shopping, entertainment, health, education]\n- type: debit or credit\n- source: bank or credit_card\n- card_name: card identifier if mentioned (e.g., 'XX8005') or empty\n- description: brief description of the transaction\n\nRules:\n- Skip promotional emails, marketing, offers\n- Skip emails that are just order confirmations without payment info\n- Skip duplicate transactions (same date, merchant, amount)\n- Date must be within last 30 days\n- Amount must be a positive number\n\nReturn ONLY a valid JSON array. No explanation text.\nExample: [{\"date\":\"2026-02-10\",\"amount\":500,\"merchant\":\"Swiggy\",\"category\":\"food\",\"type\":\"debit\",\"source\":\"bank\",\"card_name\":\"\",\"description\":\"UPI payment for food delivery\"}]"
+            }
+          ]
+        }
+      },
+      "id": "extract-txns",
+      "name": "AI Extract Transactions",
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1,
+      "position": [1080, 300],
+      "credentials": {
+        "googleGeminiApi": { "id": "gemini-api", "name": "Gemini API" }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const aiResponse = $input.first().json;\nconst text = aiResponse.text || JSON.stringify(aiResponse);\n\n// Parse JSON from AI response\nlet transactions = [];\ntry {\n  const jsonMatch = text.match(/\\[[\\s\\S]*\\]/);\n  if (jsonMatch) {\n    transactions = JSON.parse(jsonMatch[0]);\n  }\n} catch (e) {\n  return [{ json: { error: 'Failed to parse transactions', raw: text } }];\n}\n\nif (transactions.length === 0) {\n  return [{ json: { message: 'No new transactions found', count: 0 } }];\n}\n\n// Generate unique IDs and add metadata\nconst now = new Date().toISOString();\nconst processed = transactions.map((txn, i) => ({\n  txn_id: `txn_${Date.now()}_${i}`,\n  date: txn.date || '',\n  amount: txn.amount || 0,\n  merchant: txn.merchant || 'Unknown',\n  category: txn.category || 'other',\n  type: txn.type || 'debit',\n  source: txn.source || 'bank',\n  card_name: txn.card_name || '',\n  description: txn.description || '',\n  email_account: 'auto_scan',\n  raw_email_id: '',\n  created_at: now\n}));\n\nreturn processed.map(t => ({ json: t }));"
+      },
+      "id": "process-txns",
+      "name": "Process Transactions",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1300, 300]
+    },
+    {
+      "parameters": {
+        "operation": "read",
+        "documentId": { "__rl": true, "mode": "id", "value": "={{ $env.SPREADSHEET_ID }}" },
+        "sheetName": { "__rl": true, "mode": "name", "value": "Transactions" },
+        "options": {}
+      },
+      "id": "read-existing",
+      "name": "Read Existing Transactions",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [1300, 480],
+      "credentials": {
+        "googleSheetsOAuth2Api": { "id": "google-sheets", "name": "Google Sheets" }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const newTxns = $('Process Transactions').all().map(t => t.json);\nconst existing = $('Read Existing Transactions').all().map(t => t.json);\n\n// Create signature set from existing transactions\nconst existingSigs = new Set(\n  existing.map(t => `${t.date}_${t.merchant}_${t.amount}`)\n);\n\n// Filter out duplicates\nconst unique = newTxns.filter(t => {\n  const sig = `${t.date}_${t.merchant}_${t.amount}`;\n  if (existingSigs.has(sig)) return false;\n  existingSigs.add(sig); // Also dedup within batch\n  return true;\n});\n\nif (unique.length === 0) {\n  return [{ json: { message: 'All transactions already exist', count: 0, unique: [] } }];\n}\n\nreturn [{ json: { count: unique.length, unique } }];"
+      },
+      "id": "dedup",
+      "name": "Deduplicate",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1520, 380]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "conditions": [
+            {
+              "leftValue": "={{ $json.count }}",
+              "rightValue": 0,
+              "operator": { "type": "number", "operation": "gt" }
+            }
+          ]
+        }
+      },
+      "id": "has-new",
+      "name": "Has New Txns?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [1740, 380]
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": { "__rl": true, "mode": "id", "value": "={{ $env.SPREADSHEET_ID }}" },
+        "sheetName": { "__rl": true, "mode": "name", "value": "Transactions" },
+        "columns": {
+          "mappingMode": "autoMapInputData"
+        },
+        "options": {}
+      },
+      "id": "save-txns",
+      "name": "Save New Transactions",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [1960, 300],
+      "credentials": {
+        "googleSheetsOAuth2Api": { "id": "google-sheets", "name": "Google Sheets" }
+      }
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $env.TELEGRAM_CHAT_ID }}",
+        "text": "=\ud83d\udcb3 *{{ $json.count }} new transaction(s) imported*\n\n{{ $json.unique.map(t => `${t.type === 'credit' ? '\\u2b06\\ufe0f' : '\\u2b07\\ufe0f'} \\u20b9${t.amount} - ${t.merchant} (${t.category})`).join('\\n') }}",
+        "additionalFields": { "parse_mode": "Markdown" }
+      },
+      "id": "notify",
+      "name": "Notify New Transactions",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [1960, 460],
+      "credentials": {
+        "telegramApi": { "id": "telegram-bot", "name": "Mitra Telegram Bot" }
+      }
+    }
+  ],
+  "connections": {
+    "Every 30 Minutes": {
+      "main": [
+        [
+          { "node": "Gmail Finance Emails (Acc 1)", "type": "main", "index": 0 },
+          { "node": "Gmail Finance Emails (Acc 2)", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Gmail Finance Emails (Acc 1)": {
+      "main": [
+        [{ "node": "Merge Emails", "type": "main", "index": 0 }]
+      ]
+    },
+    "Gmail Finance Emails (Acc 2)": {
+      "main": [
+        [{ "node": "Merge Emails", "type": "main", "index": 1 }]
+      ]
+    },
+    "Merge Emails": {
+      "main": [
+        [{ "node": "Has Finance Emails?", "type": "main", "index": 0 }]
+      ]
+    },
+    "Has Finance Emails?": {
+      "main": [
+        [{ "node": "AI Extract Transactions", "type": "main", "index": 0 }],
+        []
+      ]
+    },
+    "AI Extract Transactions": {
+      "main": [
+        [{ "node": "Process Transactions", "type": "main", "index": 0 }]
+      ]
+    },
+    "Process Transactions": {
+      "main": [
+        [{ "node": "Read Existing Transactions", "type": "main", "index": 0 }]
+      ]
+    },
+    "Read Existing Transactions": {
+      "main": [
+        [{ "node": "Deduplicate", "type": "main", "index": 0 }]
+      ]
+    },
+    "Deduplicate": {
+      "main": [
+        [{ "node": "Has New Txns?", "type": "main", "index": 0 }]
+      ]
+    },
+    "Has New Txns?": {
+      "main": [
+        [
+          { "node": "Save New Transactions", "type": "main", "index": 0 },
+          { "node": "Notify New Transactions", "type": "main", "index": 0 }
+        ],
+        []
+      ]
+    }
+  },
+  "settings": { "executionOrder": "v1" },
+  "tags": [{ "name": "mitra-cron" }],
+  "active": false
+}

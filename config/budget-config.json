@@ -1,0 +1,28 @@
+{
+  "monthly_budget": {
+    "loan": 40000,
+    "savings": 10000,
+    "insurances": 10000,
+    "mf_sip": 5000,
+    "stocks": 5000,
+    "home": 5000,
+    "bills": 10000,
+    "other": 5000
+  },
+  "total_monthly": 90000,
+  "currency": "INR",
+  "alert_thresholds": {
+    "warning_percent": 80,
+    "critical_percent": 100
+  },
+  "category_aliases": {
+    "loan": ["emi", "home loan", "personal loan", "car loan", "education loan"],
+    "savings": ["saving", "fd", "rd", "fixed deposit"],
+    "insurances": ["insurance", "premium", "policy", "lic", "health insurance", "term insurance"],
+    "mf_sip": ["mutual fund", "sip", "elss", "index fund"],
+    "stocks": ["stock", "share", "equity", "trading", "demat"],
+    "home": ["rent", "maintenance", "electricity", "gas", "water bill", "society"],
+    "bills": ["mobile", "internet", "broadband", "subscription", "netflix", "amazon prime", "spotify", "recharge"],
+    "other": ["misc", "miscellaneous", "uncategorized"]
+  }
+}
