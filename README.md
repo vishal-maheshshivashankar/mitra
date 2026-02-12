@@ -19,16 +19,97 @@ A comprehensive AI-powered personal assistant running on N8N workflows with a Te
 
 ## Architecture
 
-```
-Telegram Bot ──> N8N (Router Agent) ──> 10 Specialized Sub-workflows
-                       │
-            ┌──────────┼──────────────┐
-            ▼          ▼              ▼
-         Google     Gemini AI    Health Bridge
-     (Sheets/Drive/ (2.5 Flash)   (FastAPI)
-      Gmail/Calendar)              ▲
-                              Apple Watch
-                           (Health Auto Export)
+```mermaid
+flowchart TB
+    subgraph USER["User Interface"]
+        TG["Telegram Bot"]
+        AW["Apple Watch
+        (Health Auto Export)"]
+    end
+
+    subgraph N8N["N8N Workflow Engine"]
+        ROUTER["00 - Router Agent
+        (AI Tools Agent)"]
+
+        subgraph AGENTS["On-Demand Agents"]
+            A01["01 - Email"]
+            A02["02 - Calendar"]
+            A03["03 - Documents"]
+            A04["04 - Budget"]
+            A05["05 - Finance"]
+            A06["06 - Health"]
+            A07["07 - Calories"]
+            A08["08 - Todo"]
+            A09["09 - Fitness"]
+            A10["10 - Motivation"]
+        end
+
+        subgraph CRONS["Scheduled Workflows"]
+            C1["Cron: Email Monitor
+            (every 15 min)"]
+            C2["Cron: Finance Scraper
+            (every 30 min)"]
+            C3["Cron: Budget Alerts
+            (daily 9 PM)"]
+            C4["Cron: Health Alerts
+            (hourly)"]
+            C5["Cron: Todo Reminders
+            (8 AM & 9 PM)"]
+            C6["Cron: Motivation
+            (6:30 AM & Sun 8 PM)"]
+        end
+
+        MEM["Redis
+        (Chat Memory)"]
+    end
+
+    subgraph INFRA["Infrastructure (Docker)"]
+        PG["PostgreSQL 16
+        (N8N Data)"]
+        HB["Health Bridge
+        (FastAPI :8085)"]
+    end
+
+    subgraph EXTERNAL["External Services"]
+        GMAIL["Gmail API
+        (2 accounts)"]
+        GCAL["Google Calendar"]
+        GDRIVE["Google Drive"]
+        GSHEETS["Google Sheets
+        (8 sheets)"]
+        GEMINI["Gemini 2.5 Flash
+        (AI + Vision)"]
+    end
+
+    TG -->|messages & photos| ROUTER
+    ROUTER -->|routes to| AGENTS
+    ROUTER <-->|conversation context| MEM
+    AGENTS -->|responses| TG
+    CRONS -->|alerts & reminders| TG
+
+    AW -->|health data| HB
+    HB -->|REST API| A06
+    HB -->|REST API| A09
+    HB -->|REST API| C4
+
+    A01 & C1 & C2 --> GMAIL
+    A02 --> GCAL
+    A03 --> GDRIVE
+    A03 & A01 --> GMAIL
+    A04 & A05 & A07 & A08 & C2 & C3 --> GSHEETS
+    A07 --> GEMINI
+    ROUTER --> GEMINI
+
+    N8N --> PG
+
+    style USER fill:#e1f5fe,stroke:#0288d1
+    style N8N fill:#f3e5f5,stroke:#7b1fa2
+    style INFRA fill:#fff3e0,stroke:#ef6c00
+    style EXTERNAL fill:#e8f5e9,stroke:#2e7d32
+    style ROUTER fill:#ce93d8,stroke:#7b1fa2
+    style MEM fill:#ffcc80,stroke:#ef6c00
+    style PG fill:#ffcc80,stroke:#ef6c00
+    style HB fill:#ffcc80,stroke:#ef6c00
 ```
 
 **Stack:** N8N + PostgreSQL + Redis + FastAPI | Gemini 2.5 Flash | Google Sheets
@@ -272,16 +353,38 @@ make validate
 
 ### Network Architecture
 
-```
-Internet (iPhone Health Auto Export)
-    |
-    v
-[Health Bridge :8085] ── mitra-network
-    |
-[N8N :5678] ── mitra-network + mitra-internal
-    |
-[PostgreSQL] ── mitra-internal (isolated)
-[Redis]      ── mitra-internal (isolated)
+```mermaid
+flowchart LR
+    subgraph INTERNET["Internet"]
+        IPHONE["iPhone
+        Health Auto Export"]
+    end
+
+    subgraph DOCKER["Docker Host (Mac Mini)"]
+        subgraph EXT["mitra-network (bridge)"]
+            HB["Health Bridge
+            :8085 (0.0.0.0)"]
+            N8N_EXT["N8N
+            :5678 (127.0.0.1)"]
+        end
+        subgraph INT["mitra-internal (isolated)"]
+            N8N_INT["N8N"]
+            PG["PostgreSQL"]
+            REDIS["Redis"]
+        end
+    end
+
+    IPHONE -->|health data| HB
+    HB <-->|REST API| N8N_EXT
+    N8N_EXT -.- N8N_INT
+    N8N_INT <--> PG
+    N8N_INT <--> REDIS
+
+    style INTERNET fill:#ffebee,stroke:#c62828
+    style EXT fill:#e1f5fe,stroke:#0288d1
+    style INT fill:#fff3e0,stroke:#ef6c00
+    style PG fill:#ffcc80,stroke:#ef6c00
+    style REDIS fill:#ffcc80,stroke:#ef6c00
 ```
 
 PostgreSQL and Redis are on an internal-only Docker network, inaccessible from outside Docker.
