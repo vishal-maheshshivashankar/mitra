@@ -17,6 +17,23 @@ A comprehensive AI-powered personal assistant running on N8N workflows with a Te
 | 9 | **Fitness Tracking** | Running metrics, recovery assessment, nutrition recommendations |
 | 10 | **Daily Motivation** | Personalized morning messages, weekly reviews, progress tracking |
 
+## N8N Workflow Screenshots
+
+### All Workflows
+![N8N Workflows Overview](docs/n8n-workflows-all.png)
+
+### Email Agent - Gmail Monitoring & AI Classification
+![Email Agent Workflow](docs/n8n-email-workflow.png)
+
+### Calorie Agent - Food Photo Analysis via Gemini Vision
+![Calorie Agent Workflow](docs/n8n-calorie-workflow.png)
+
+### Finance Email Scraper - Automated Transaction Extraction
+![Finance Scraper Workflow](docs/n8n-finance-scraper.png)
+
+### Health Alerts - Water Reminders & Heart Rate Monitoring
+![Health Alerts Workflow](docs/n8n-health-alerts.png)
+
 ## Architecture
 
 ```mermaid
