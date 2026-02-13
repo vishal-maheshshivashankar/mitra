@@ -8,7 +8,7 @@ AI-powered personal assistant on N8N workflows + Telegram bot, deployed locally 
 ---
 
 ## Tech Stack
-- **Orchestration:** N8N v1.76.1 (Docker)
+- **Orchestration:** N8N v2.7.4 (Docker)
 - **AI Model:** Gemini 2.5 Flash (primary), OpenAI (optional fallback)
 - **Database:** PostgreSQL 16 (N8N data), Redis 7 (chat memory)
 - **Health Bridge:** FastAPI + Pydantic (Python 3.12)
@@ -76,7 +76,7 @@ mitra/
 
 | Service | Image | Port | Network | Resources |
 |---------|-------|------|---------|-----------|
-| n8n | n8nio/n8n:1.76.1 | 127.0.0.1:5678 | mitra-network + mitra-internal | 2 CPU / 2GB |
+| n8n | n8nio/n8n:2.7.4 | 127.0.0.1:5678 | mitra-network + mitra-internal | 2 CPU / 2GB |
 | postgres | postgres:16-alpine | internal only | mitra-internal | 1 CPU / 1GB |
 | redis | redis:7-alpine | internal only | mitra-internal | 0.5 CPU / 512MB |
 | health-bridge | custom (Python 3.12) | 0.0.0.0:8085 | mitra-network | 0.5 CPU / 512MB |
@@ -166,7 +166,7 @@ mitra/
 3. **Gemini rate limiting** - Not handled; concurrent requests could fail
 4. **Health data cleanup** - No archival/pruning of daily JSON files (disk grows unbounded)
 5. **Finance dedup** - Relies on exact (date, merchant, amount) match; slight variations create duplicates
-6. **N8N version** - Pinned to 1.76.1; shows "Critical update available" for 1.121.0+
+6. **N8N version** - Updated to 2.7.4
 
 ---
 
