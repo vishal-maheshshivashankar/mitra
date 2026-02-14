@@ -148,6 +148,7 @@ class WorkoutData(BaseModel):
 
 class HealthExport(BaseModel):
     """Flexible health data payload from Health Auto Export or Shortcuts."""
+
     metrics: Optional[HealthMetric] = None
     workout: Optional[WorkoutData] = None
     data: Optional[dict] = None
@@ -444,9 +445,14 @@ def _aggregate_daily(metrics: list[dict]) -> dict:
     """Aggregate a day's metrics into a summary."""
     if not metrics:
         return {
-            "heart_rate_avg": 0, "resting_hr": 0, "hrv_avg": 0,
-            "steps": 0, "active_calories": 0, "water_glasses": 0,
-            "sleep_hours": 0, "blood_oxygen_avg": 0,
+            "heart_rate_avg": 0,
+            "resting_hr": 0,
+            "hrv_avg": 0,
+            "steps": 0,
+            "active_calories": 0,
+            "water_glasses": 0,
+            "sleep_hours": 0,
+            "blood_oxygen_avg": 0,
         }
 
     def _avg(key):

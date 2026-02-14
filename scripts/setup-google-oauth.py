@@ -37,19 +37,23 @@ ACCOUNTS = [
 def check_dependencies():
     try:
         from google_auth_oauthlib.flow import InstalledAppFlow  # noqa: F401
+
         return True
     except ImportError:
         print("Missing dependencies. Install with:")
-        print("  pip3 install google-auth google-auth-oauthlib google-auth-httplib2 google-api-python-client")
+        print(
+            "  pip3 install google-auth google-auth-oauthlib"
+            " google-auth-httplib2 google-api-python-client"
+        )
         return False
 
 
 def generate_token(account_email: str, account_num: int):
     from google_auth_oauthlib.flow import InstalledAppFlow
 
-    print(f"\n{'='*50}")
+    print(f"\n{'=' * 50}")
     print(f"Generating token for: {account_email}")
-    print(f"{'='*50}")
+    print(f"{'=' * 50}")
     print(f"A browser window will open. Sign in with: {account_email}")
     print("Grant all requested permissions.\n")
 
@@ -74,7 +78,7 @@ def generate_token(account_email: str, account_num: int):
 
     print(f"\n  Token saved to: {token_file}")
     print(f"  Refresh token: {creds.refresh_token[:20]}...")
-    print(f"\n  Add to .env:")
+    print("\n  Add to .env:")
     print(f"  GMAIL_REFRESH_TOKEN_{account_num}={creds.refresh_token}")
 
     return creds.refresh_token
@@ -89,12 +93,12 @@ def main():
         sys.exit(1)
 
     if not os.path.exists(CREDENTIALS_FILE):
-        print(f"\nError: OAuth credentials not found at:")
+        print("\nError: OAuth credentials not found at:")
         print(f"  {CREDENTIALS_FILE}")
-        print(f"\nDownload from Google Cloud Console:")
-        print(f"  1. Go to https://console.cloud.google.com/apis/credentials")
-        print(f"  2. Click on your OAuth 2.0 Client ID")
-        print(f"  3. Click 'DOWNLOAD JSON'")
+        print("\nDownload from Google Cloud Console:")
+        print("  1. Go to https://console.cloud.google.com/apis/credentials")
+        print("  2. Click on your OAuth 2.0 Client ID")
+        print("  3. Click 'DOWNLOAD JSON'")
         print(f"  4. Save as: {CREDENTIALS_FILE}")
         sys.exit(1)
 
@@ -108,9 +112,9 @@ def main():
             continue
 
     if tokens:
-        print(f"\n{'='*50}")
+        print(f"\n{'=' * 50}")
         print("Summary - Add these to your .env file:")
-        print(f"{'='*50}")
+        print(f"{'=' * 50}")
         for i, (account, token) in enumerate(tokens.items(), 1):
             print(f"# {account}")
             print(f"GMAIL_REFRESH_TOKEN_{i}={token}")

@@ -1,4 +1,4 @@
-.PHONY: help setup up down restart logs status import backup backup-db clean health-logs
+.PHONY: help setup up down restart logs status import backup backup-db clean health-logs lint test pre-commit-install
 
 # ─── Default ─────────────────────────────────────────────────
 help: ## Show this help message
@@ -115,6 +115,18 @@ shell-db: ## Open psql shell in PostgreSQL
 
 redis-cli: ## Open Redis CLI
 	docker compose exec redis redis-cli
+
+# ─── Code Quality ───────────────────────────────────────────
+lint: ## Run ruff linter and format check
+	ruff check .
+	ruff format --check .
+
+test: ## Run pytest with coverage
+	pytest -v --cov=health-bridge --cov-report=term-missing
+
+pre-commit-install: ## Install pre-commit git hooks
+	pre-commit install
+	@echo "==> Pre-commit hooks installed"
 
 # ─── Validation ──────────────────────────────────────────────
 validate: ## Validate environment and credentials

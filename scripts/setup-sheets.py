@@ -18,39 +18,89 @@ BUDGET_CONFIG = os.path.join(PROJECT_DIR, "config", "budget-config.json")
 
 SHEETS_SCHEMA = {
     "Transactions": [
-        "txn_id", "date", "amount", "merchant", "category", "type",
-        "source", "card_name", "description", "email_account",
-        "raw_email_id", "created_at"
+        "txn_id",
+        "date",
+        "amount",
+        "merchant",
+        "category",
+        "type",
+        "source",
+        "card_name",
+        "description",
+        "email_account",
+        "raw_email_id",
+        "created_at",
     ],
-    "Budgets": [
-        "category", "monthly_limit", "alert_threshold"
-    ],
+    "Budgets": ["category", "monthly_limit", "alert_threshold"],
     "Meals": [
-        "meal_id", "date", "time", "meal_type", "food_items",
-        "calories", "protein_g", "carbs_g", "fat_g", "sugar_g",
-        "fiber_g", "image_url"
+        "meal_id",
+        "date",
+        "time",
+        "meal_type",
+        "food_items",
+        "calories",
+        "protein_g",
+        "carbs_g",
+        "fat_g",
+        "sugar_g",
+        "fiber_g",
+        "image_url",
     ],
     "Todos": [
-        "todo_id", "date", "task", "priority", "status",
-        "due_date", "completed_at", "category"
+        "todo_id",
+        "date",
+        "task",
+        "priority",
+        "status",
+        "due_date",
+        "completed_at",
+        "category",
     ],
     "Health": [
-        "date", "time", "heart_rate", "resting_hr", "hrv",
-        "steps", "active_calories", "water_glasses", "sleep_hours",
-        "blood_oxygen"
+        "date",
+        "time",
+        "heart_rate",
+        "resting_hr",
+        "hrv",
+        "steps",
+        "active_calories",
+        "water_glasses",
+        "sleep_hours",
+        "blood_oxygen",
     ],
     "Workouts": [
-        "workout_id", "date", "type", "duration_min", "distance_km",
-        "calories", "avg_hr", "max_hr", "avg_pace", "notes"
+        "workout_id",
+        "date",
+        "type",
+        "duration_min",
+        "distance_km",
+        "calories",
+        "avg_hr",
+        "max_hr",
+        "avg_pace",
+        "notes",
     ],
     "Email_Log": [
-        "email_id", "account", "date", "sender", "subject",
-        "category", "priority", "is_malicious", "action_taken"
+        "email_id",
+        "account",
+        "date",
+        "sender",
+        "subject",
+        "category",
+        "priority",
+        "is_malicious",
+        "action_taken",
     ],
     "Weekly_Summary": [
-        "week_start", "total_spend", "budget_status", "calories_avg",
-        "steps_avg", "workouts_count", "todos_completed", "todos_total",
-        "ai_summary"
+        "week_start",
+        "total_spend",
+        "budget_status",
+        "calories_avg",
+        "steps_avg",
+        "workouts_count",
+        "todos_completed",
+        "todos_total",
+        "ai_summary",
     ],
 }
 
@@ -61,6 +111,7 @@ def check_dependencies():
     try:
         import gspread  # noqa: F401
         from google.oauth2.service_account import Credentials  # noqa: F401
+
         return True
     except ImportError:
         print("Missing dependencies. Install with:")
@@ -107,11 +158,14 @@ def setup_spreadsheet(spreadsheet_id=None):
         worksheet.update("A1", [headers])
 
         # Format header row (bold, blue background)
-        worksheet.format("A1:{}1".format(chr(64 + len(headers))), {
-            "backgroundColor": {"red": 0.2, "green": 0.4, "blue": 0.8},
-            "textFormat": {"bold": True, "foregroundColor": {"red": 1, "green": 1, "blue": 1}},
-            "horizontalAlignment": "CENTER",
-        })
+        worksheet.format(
+            "A1:{}1".format(chr(64 + len(headers))),
+            {
+                "backgroundColor": {"red": 0.2, "green": 0.4, "blue": 0.8},
+                "textFormat": {"bold": True, "foregroundColor": {"red": 1, "green": 1, "blue": 1}},
+                "horizontalAlignment": "CENTER",
+            },
+        )
 
         # Freeze header row
         worksheet.freeze(rows=1)
@@ -152,12 +206,12 @@ def main():
         sys.exit(1)
 
     if not os.path.exists(CREDENTIALS_FILE):
-        print(f"\nError: Service account credentials not found at:")
+        print("\nError: Service account credentials not found at:")
         print(f"  {CREDENTIALS_FILE}")
-        print(f"\nCreate a service account in Google Cloud Console:")
-        print(f"  1. Go to https://console.cloud.google.com/iam-admin/serviceaccounts")
-        print(f"  2. Create service account")
-        print(f"  3. Create key (JSON)")
+        print("\nCreate a service account in Google Cloud Console:")
+        print("  1. Go to https://console.cloud.google.com/iam-admin/serviceaccounts")
+        print("  2. Create service account")
+        print("  3. Create key (JSON)")
         print(f"  4. Save as: {CREDENTIALS_FILE}")
         sys.exit(1)
 
@@ -165,11 +219,11 @@ def main():
 
     sid = setup_spreadsheet(spreadsheet_id)
 
-    print(f"\n{'='*50}")
+    print(f"\n{'=' * 50}")
     print("Add to your .env file:")
-    print(f"{'='*50}")
+    print(f"{'=' * 50}")
     print(f"SPREADSHEET_ID={sid}")
-    print(f"\nDone! Your Mitra Dashboard is ready.")
+    print("\nDone! Your Mitra Dashboard is ready.")
 
 
 if __name__ == "__main__":
