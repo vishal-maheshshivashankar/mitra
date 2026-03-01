@@ -1,0 +1,15 @@
+# Gitleaks configuration for Mitra
+# https://github.com/gitleaks/gitleaks
+
+title = "Mitra Secret Scanner"
+
+[allowlist]
+  description = "N8N workflow false positives"
+  regexes = [
+    # N8N env var references are safe — they're placeholders, not values
+    '''\$env\.[A-Z_]+''',
+    # N8N internal UUIDs (webhookId, nodeId) are not secrets
+    '''[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}''',
+    # N8N workflow IDs (short alphanumeric)
+    '''"id":\s*"[A-Za-z0-9]{16}"''',
+  ]
