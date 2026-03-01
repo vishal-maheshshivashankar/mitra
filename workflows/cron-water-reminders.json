@@ -1,0 +1,173 @@
+{
+  "name": "Cron - Water Reminders (Hourly)",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 8-22 * * *"
+            }
+          ]
+        }
+      },
+      "id": "hourly-schedule",
+      "name": "Hourly 8AM-10PM",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        220,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "read",
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{ $env.SPREADSHEET_ID }}"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "Water"
+        },
+        "options": {}
+      },
+      "id": "read-water",
+      "name": "Read Water Sheet",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        440,
+        300
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "gsheets001",
+          "name": "Google Sheets"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const today = new Date().toISOString().split('T')[0];\nconst rows = $input.all();\nconst todayTotal = rows\n  .filter(r => r.json.date === today)\n  .reduce((sum, r) => sum + (parseFloat(r.json.ml) || 0), 0);\n\nconst target = 3000;\nconst remaining = target - todayTotal;\nconst hour = new Date().getHours();\nconst hoursLeft = 22 - hour;\n\n// Expected ml by this hour (linear: 8am-10pm = 14 hours)\nconst hoursPassed = Math.max(0, hour - 8);\nconst expectedByNow = Math.round((hoursPassed / 14) * target);\n\nconst shouldAlert = todayTotal < expectedByNow;\nlet msg = '';\n\nif (shouldAlert) {\n  msg = `\ud83d\udca7 *Water Reminder*\\n\\nYou've had ${todayTotal}ml / ${target}ml today.\\n${remaining}ml more in ${hoursLeft} hours.\\n\\n`;\n  if (todayTotal === 0) msg += 'Time to start hydrating! \ud83e\udd64';\n  else if (todayTotal < 500) msg += \"You're behind \u2014 try to catch up!\";\n  else msg += `Almost there! Just ${remaining}ml more.`;\n}\n\nreturn [{ json: { shouldAlert, message: msg, total: todayTotal, target } }];"
+      },
+      "id": "check-water",
+      "name": "Check Water Progress",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        660,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "conditions": [
+            {
+              "leftValue": "={{ $json.shouldAlert }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true"
+              }
+            }
+          ]
+        }
+      },
+      "id": "should-alert",
+      "name": "Behind Schedule?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        880,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $env.TELEGRAM_CHAT_ID }}",
+        "text": "={{ $json.message }}",
+        "additionalFields": {
+          "parse_mode": "Markdown",
+          "appendAttribution": false
+        }
+      },
+      "id": "send-reminder",
+      "name": "Send Water Reminder",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        1100,
+        260
+      ],
+      "credentials": {
+        "telegramApi": {
+          "id": "61YafmlNQxmiGwcT",
+          "name": "Mitra Telegram Bot"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Hourly 8AM-10PM": {
+      "main": [
+        [
+          {
+            "node": "Read Water Sheet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Water Sheet": {
+      "main": [
+        [
+          {
+            "node": "Check Water Progress",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Water Progress": {
+      "main": [
+        [
+          {
+            "node": "Behind Schedule?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Behind Schedule?": {
+      "main": [
+        [
+          {
+            "node": "Send Water Reminder",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "tags": [
+    {
+      "name": "mitra-cron"
+    }
+  ],
+  "active": false
+}

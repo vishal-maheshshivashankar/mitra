@@ -1,55 +1,10 @@
 # Environment
 .env
-.env.local
-.env.production
-
-# Credentials (NEVER commit)
-credentials/*.json
-credentials/*.key
-credentials/*.pem
-!credentials/.gitkeep
-
-# Health bridge data
-health-bridge/data/*.json
-health-bridge/data/*.db
-
-# N8N backup data
-n8n/backup/*.json
-
-# Docker
-.docker/
-
-# Database backups (contain sensitive data)
-backups/*.dump
-backups/*.sql
-n8n/backup/**/*.json
-
-# Python
-__pycache__/
-*.py[cod]
-*$py.class
-*.egg-info/
-.eggs/
-*.egg
-venv/
-.venv/
 
 # macOS
 .DS_Store
-.AppleDouble
-.LSOverride
 
 # IDE
 .idea/
 .vscode/
 *.swp
-*.swo
-
-# Logs
-*.log
-logs/
-
-# Temporary files
-tmp/
-temp/
-*.tmp

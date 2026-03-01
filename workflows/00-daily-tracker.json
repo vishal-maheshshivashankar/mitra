@@ -1,0 +1,1236 @@
+{
+  "name": "Daily Tracker - Calorie & Water",
+  "nodes": [
+    {
+      "parameters": {
+        "updates": [
+          "message"
+        ],
+        "additionalFields": {}
+      },
+      "id": "telegram-trigger",
+      "name": "Telegram Trigger",
+      "type": "n8n-nodes-base.telegramTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        220,
+        300
+      ],
+      "webhookId": "7e4ffc15-8b6a-4f30-ac0f-3bc4bca1278b",
+      "credentials": {
+        "telegramApi": {
+          "id": "61YafmlNQxmiGwcT",
+          "name": "Mitra Telegram Bot"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "file",
+        "operation": "get",
+        "fileId": "={{ $json.message.photo[$json.message.photo.length - 1].file_id }}"
+      },
+      "id": "get-photo",
+      "name": "Get Photo File",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        660,
+        100
+      ],
+      "credentials": {
+        "telegramApi": {
+          "id": "61YafmlNQxmiGwcT",
+          "name": "Mitra Telegram Bot"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "=https://api.telegram.org/file/bot{{ $env.TELEGRAM_BOT_TOKEN }}/{{ $json.result.file_path }}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "file"
+            }
+          }
+        }
+      },
+      "id": "download-photo",
+      "name": "Download Photo",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        880,
+        100
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://generativelanguage.googleapis.com/upload/v1beta/files?key={{ $env.GEMINI_API_KEY }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-Goog-Upload-Protocol",
+              "value": "raw"
+            },
+            {
+              "name": "X-Goog-Upload-Header-Content-Type",
+              "value": "image/jpeg"
+            },
+            {
+              "name": "Content-Type",
+              "value": "image/jpeg"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "binaryData",
+        "inputDataFieldName": "data",
+        "options": {}
+      },
+      "id": "upload-to-gemini",
+      "name": "Upload to Gemini Files",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1100,
+        100
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const uploadResp = $input.first().json;\nconst fileUri = uploadResp?.file?.uri;\nconst mimeType = uploadResp?.file?.mimeType || 'image/jpeg';\n\nif (!fileUri) {\n  throw new Error('Gemini Files upload failed. Response: ' + JSON.stringify(uploadResp).substring(0, 500));\n}\n\nconst caption = $('Telegram Trigger').first().json.message.caption || '';\nconst userHint = caption ? '\\n\\nUser note: \"' + caption + '\"' : '';\n\nconst prompt = 'Analyze this food image and return ONLY valid JSON, no markdown, no explanation.' + userHint + '\\n\\nReturn this exact structure:\\n{\\n  \"meal_type\": \"lunch\",\\n  \"items\": [{\"name\": \"Dal Rice\", \"portion\": \"1 bowl\", \"calories\": 350, \"protein\": 12, \"carbs\": 55, \"fat\": 8, \"sugar\": 3, \"fiber\": 6}],\\n  \"totals\": {\"calories\": 350, \"protein\": 12, \"carbs\": 55, \"fat\": 8, \"sugar\": 3, \"fiber\": 6},\\n  \"health_rating\": 4,\\n  \"notes\": \"Brief comment\"\\n}';\n\nconst geminiBody = {\n  contents: [{\n    parts: [\n      { fileData: { fileUri, mimeType } },\n      { text: prompt }\n    ]\n  }],\n  generationConfig: { temperature: 0.3, maxOutputTokens: 8192 }\n};\n\nreturn [{ json: { geminiBody, fileUri } }];"
+      },
+      "id": "encode-photo",
+      "name": "Encode Photo",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1320,
+        100
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={{ $env.GEMINI_API_KEY }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "json",
+        "specifyBody": "json",
+        "jsonBody": "={{ $json.geminiBody }}",
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
+      },
+      "id": "gemini-analyze",
+      "name": "Gemini Food Analysis",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1320,
+        100
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const raw = $input.first().json;\nconst chatId = $('Telegram Trigger').first().json.message.chat.id;\nconst esc = s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');\n\n// Capture actual Gemini API errors (neverError:true keeps them out of node errors)\nif (raw.error) {\n  const msg = raw.error.message || JSON.stringify(raw.error).substring(0, 300);\n  const status = raw.error.status || raw.error.code || '?';\n  return [{ json: {\n    reply: `❌ <b>Gemini error [${esc(String(status))}]:</b>\\n${esc(msg)}`,\n    chat_id: chatId,\n    meal_id: '', date: new Date().toISOString().split('T')[0],\n    time: new Date().toTimeString().split(' ')[0],\n    meal_type: 'error', food_items: 'gemini_error',\n    calories: 0, protein_g: 0, carbs_g: 0, fat_g: 0, sugar_g: 0, fiber_g: 0\n  }}];\n}\n\nconst text = raw.candidates?.[0]?.content?.parts?.[0]?.text || '{}';\n\nlet parsed;\ntry {\n  const clean = text.replace(/```json\\n?|```/g, '').trim();\n  const match = clean.match(/\\{[\\s\\S]*\\}/);\n  parsed = match ? JSON.parse(match[0]) : {};\n} catch(e) {\n  parsed = {};\n}\n\nconst now = new Date();\nconst mealId = 'meal_' + now.getTime();\nconst items = (parsed.items || []).map(i => `• ${esc(i.name)} (${esc(i.portion)}): ${i.calories} kcal`).join('\\n');\nconst t = parsed.totals || {};\nconst sugarAlert = (t.sugar || 0) > 24 ? `\\n\\n⚠️ High sugar: ${t.sugar}g (limit: 30g/day)` : '';\nconst stars = '⭐'.repeat(Math.min(parsed.health_rating || 3, 5));\n\nconst reply = `🍽️ <b>Meal Logged!</b>\\n\\n${items}\\n\\n<b>Totals:</b>\\nCalories: ${t.calories || 0} kcal\\nProtein: ${t.protein || 0}g | Carbs: ${t.carbs || 0}g | Fat: ${t.fat || 0}g\\n\\nHealth: ${stars}\\n💡 ${esc(parsed.notes || '')}${sugarAlert}`;\n\nreturn [{ json: {\n  reply,\n  chat_id: chatId,\n  meal_id: mealId,\n  date: now.toISOString().split('T')[0],\n  time: now.toTimeString().split(' ')[0],\n  meal_type: parsed.meal_type || 'meal',\n  food_items: (parsed.items || []).map(i => i.name).join(', '),\n  calories: t.calories || 0,\n  protein_g: t.protein || 0,\n  carbs_g: t.carbs || 0,\n  fat_g: t.fat || 0,\n  sugar_g: t.sugar || 0,\n  fiber_g: t.fiber || 0\n}}];"
+      },
+      "id": "parse-nutrition",
+      "name": "Parse Nutrition",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1320,
+        100
+      ]
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $json.chat_id }}",
+        "text": "={{ $json.reply }}",
+        "additionalFields": {
+          "parse_mode": "HTML",
+          "appendAttribution": false
+        }
+      },
+      "id": "send-calorie-reply",
+      "name": "Send Calorie Reply",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        1540,
+        20
+      ],
+      "credentials": {
+        "telegramApi": {
+          "id": "61YafmlNQxmiGwcT",
+          "name": "Mitra Telegram Bot"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{ $env.SPREADSHEET_ID }}"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "Meals"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "meal_id": "={{ $json.meal_id }}",
+            "date": "={{ $json.date }}",
+            "time": "={{ $json.time }}",
+            "meal_type": "={{ $json.meal_type }}",
+            "food_items": "={{ $json.food_items }}",
+            "calories": "={{ $json.calories }}",
+            "protein_g": "={{ $json.protein_g }}",
+            "carbs_g": "={{ $json.carbs_g }}",
+            "fat_g": "={{ $json.fat_g }}",
+            "sugar_g": "={{ $json.sugar_g }}",
+            "fiber_g": "={{ $json.fiber_g }}"
+          },
+          "schema": [
+            {
+              "id": "meal_id",
+              "displayName": "meal_id",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "date",
+              "displayName": "date",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "time",
+              "displayName": "time",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "meal_type",
+              "displayName": "meal_type",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "food_items",
+              "displayName": "food_items",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "calories",
+              "displayName": "calories",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "number",
+              "removed": false
+            },
+            {
+              "id": "protein_g",
+              "displayName": "protein_g",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "number",
+              "removed": false
+            },
+            {
+              "id": "carbs_g",
+              "displayName": "carbs_g",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "number",
+              "removed": false
+            },
+            {
+              "id": "fat_g",
+              "displayName": "fat_g",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "number",
+              "removed": false
+            },
+            {
+              "id": "sugar_g",
+              "displayName": "sugar_g",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "number",
+              "removed": false
+            },
+            {
+              "id": "fiber_g",
+              "displayName": "fiber_g",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "number",
+              "removed": false
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "save-meal",
+      "name": "Save Meal to Sheets",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        1540,
+        180
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "gsheets001",
+          "name": "Google Sheets"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const raw = ($input.first().json.message.text || '');\nconst text = raw.replace(/^\\/water\\s*/i, '').toLowerCase();\nconst chatId = $input.first().json.message.chat.id;\nconst numMatch = text.match(/([\\d.]+)/);\nlet ml;\nif (numMatch) {\n  const num = parseFloat(numMatch[1]);\n  ml = num < 20 ? Math.round(num * 250) : Math.round(num);\n} else {\n  ml = 250;\n}\nif (ml < 50) ml = 50;\nif (ml > 2000) ml = 2000;\nconst now = new Date();\nreturn [{ json: {\n  chat_id: chatId, ml,\n  date: now.toISOString().split('T')[0],\n  time: now.toTimeString().split(' ')[0]\n}}];"
+      },
+      "id": "parse-water",
+      "name": "Parse Water Command",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        660,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{ $env.SPREADSHEET_ID }}"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "Water"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "date": "={{ $json.date }}",
+            "time": "={{ $json.time }}",
+            "ml": "={{ $json.ml }}"
+          },
+          "schema": [
+            {
+              "id": "date",
+              "displayName": "date",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "time",
+              "displayName": "time",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "ml",
+              "displayName": "ml",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "number",
+              "removed": false
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "save-water",
+      "name": "Save Water to Sheets",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        880,
+        300
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "gsheets001",
+          "name": "Google Sheets"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "read",
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{ $env.SPREADSHEET_ID }}"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "Water"
+        },
+        "options": {}
+      },
+      "id": "read-water-today",
+      "name": "Read Today Water",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        1100,
+        300
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "gsheets001",
+          "name": "Google Sheets"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const today = new Date().toISOString().split('T')[0];\nconst rows = $input.all();\nconst todayTotal = rows\n  .filter(r => r.json.date === today)\n  .reduce((sum, r) => sum + (parseFloat(r.json.ml) || 0), 0);\n\nconst target = 3000;\nconst remaining = Math.max(0, target - todayTotal);\nconst percent = Math.round((todayTotal / target) * 100);\n// Bar: 10 squares, each = 200ml\nconst filled = Math.min(Math.floor(todayTotal / 200), 10);\nlet bar = '';\nfor (let i = 0; i < 10; i++) bar += i < filled ? '🟦' : '⬜';\n\nlet msg = `💧 *Water logged!*\\n\\n${bar}\\nToday: *${todayTotal}ml / ${target}ml* (${percent}%)`;\nif (remaining > 0) msg += `\\n${remaining}ml more to reach your goal!`;\nelse msg += `\\n🎉 Daily water goal reached!`;\n\nconst chatId = $('Parse Water Command').first().json.chat_id;\nreturn [{ json: { reply: msg, chat_id: chatId } }];"
+      },
+      "id": "format-water-reply",
+      "name": "Format Water Reply",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1320,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $json.chat_id }}",
+        "text": "={{ $json.reply }}",
+        "additionalFields": {
+          "parse_mode": "Markdown",
+          "appendAttribution": false
+        }
+      },
+      "id": "send-water-reply",
+      "name": "Send Water Reply",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        1540,
+        300
+      ],
+      "credentials": {
+        "telegramApi": {
+          "id": "61YafmlNQxmiGwcT",
+          "name": "Mitra Telegram Bot"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "read",
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{ $env.SPREADSHEET_ID }}"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "Meals"
+        },
+        "options": {}
+      },
+      "id": "read-meals-today",
+      "name": "Read Meals Today",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        660,
+        500
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "gsheets001",
+          "name": "Google Sheets"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const today = new Date().toISOString().split('T')[0];\nconst text = ($('Telegram Trigger').first().json.message.text || '').toLowerCase();\n\nlet days = 1, periodLabel = 'Today';\nif (text.includes('month')) { days = 30; periodLabel = 'This Month (30 days)'; }\nelse if (text.includes('week')) { days = 7; periodLabel = 'This Week (7 days)'; }\n\nconst startDate = new Date();\nstartDate.setDate(startDate.getDate() - (days - 1));\nconst startDateStr = startDate.toISOString().split('T')[0];\nconst inRange = date => date >= startDateStr && date <= today;\n\nconst meals = $input.all().filter(r => inRange(r.json.date));\nconst calTarget = 2000 * days;\nconst totalCal = meals.reduce((s, r) => s + (parseFloat(r.json.calories) || 0), 0);\nconst totalProtein = meals.reduce((s, r) => s + (parseFloat(r.json.protein_g) || 0), 0);\nconst totalCarbs = meals.reduce((s, r) => s + (parseFloat(r.json.carbs_g) || 0), 0);\nconst totalFat = meals.reduce((s, r) => s + (parseFloat(r.json.fat_g) || 0), 0);\nconst totalSugar = meals.reduce((s, r) => s + (parseFloat(r.json.sugar_g) || 0), 0);\n\nconst calPct = Math.round((totalCal / calTarget) * 100);\nconst calBars = Math.min(Math.round((totalCal / calTarget) * 10), 10);\nlet calBar = ''; for (let i = 0; i < 10; i++) calBar += i < calBars ? '🟩' : '⬜';\n\nconst chatId = $('Telegram Trigger').first().json.message.chat.id;\nconst dateRange = days === 1\n  ? new Date().toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'short' })\n  : `${startDateStr} → ${today}`;\n\nlet msg = `📊 *${periodLabel}*\\n_${dateRange}_\\n\\n`;\nmsg += `🍽️ *Calories*\\n${calBar}\\n`;\nif (days > 1) msg += `Total: *${totalCal} kcal* | Avg: *${Math.round(totalCal/days)} kcal/day* (${calPct}%)\\n`;\nelse msg += `${totalCal} / ${calTarget} kcal (${calPct}%)\\n`;\nmsg += `Protein: ${totalProtein}g | Carbs: ${totalCarbs}g | Fat: ${totalFat}g`;\n\nif (days === 1) {\n  const mealList = meals.map(r => `  • ${r.json.meal_type}: ${r.json.food_items} (${r.json.calories} kcal)`).join('\\n') || '  No meals logged yet';\n  msg += `\\n\\n🥗 *Meals (${meals.length})*\\n${mealList}`;\n} else {\n  msg += `\\n\\n🥗 *Meals logged: ${meals.length}* (avg ${(meals.length/days).toFixed(1)}/day)`;\n}\n\nif (totalSugar > 30 * days) msg += `\\n\\n⚠️ High sugar: ${totalSugar}g (limit: ${30 * days}g)`;\n\nreturn [{ json: { reply: msg, chat_id: chatId } }];"
+      },
+      "id": "build-summary",
+      "name": "Build Daily Summary",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        900,
+        570
+      ]
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $json.chat_id }}",
+        "text": "={{ $json.reply }}",
+        "additionalFields": {
+          "parse_mode": "Markdown",
+          "appendAttribution": false
+        }
+      },
+      "id": "send-summary",
+      "name": "Send Summary",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        1120,
+        570
+      ],
+      "credentials": {
+        "telegramApi": {
+          "id": "61YafmlNQxmiGwcT",
+          "name": "Mitra Telegram Bot"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const msg = $input.first().json.message;\nconst foodText = (msg.text || '').replace(/^\\/food\\s*/i, '').trim();\n\nconst prompt = 'You are a nutrition expert. Analyze the following food description and return ONLY valid JSON, no markdown, no explanation.\\n\\nFood description: \"' + foodText + '\"\\n\\nReturn this exact structure:\\n{\\n  \"meal_type\": \"lunch\",\\n  \"items\": [{\"name\": \"Dal Rice\", \"portion\": \"1 bowl\", \"calories\": 350, \"protein\": 12, \"carbs\": 55, \"fat\": 8, \"sugar\": 3, \"fiber\": 6}],\\n  \"totals\": {\"calories\": 350, \"protein\": 12, \"carbs\": 55, \"fat\": 8, \"sugar\": 3, \"fiber\": 6},\\n  \"health_rating\": 4,\\n  \"notes\": \"Brief comment\"\\n}\\n\\nIf the text is not a food description, return:\\n{\"items\": [], \"totals\": {\"calories\": 0, \"protein\": 0, \"carbs\": 0, \"fat\": 0, \"sugar\": 0, \"fiber\": 0}, \"meal_type\": \"unknown\", \"health_rating\": 0, \"notes\": \"Not recognised as food. Type /food [what you ate] or send a photo.\"}';\n\nconst geminiBody = {\n  contents: [{ parts: [{ text: prompt }] }],\n  generationConfig: { temperature: 0.3, maxOutputTokens: 8192 }\n};\n\nreturn [{ json: { geminiBody } }];"
+      },
+      "id": "build-text-food",
+      "name": "Build Text Food Request",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        880,
+        1000
+      ]
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $json.message.chat.id }}",
+        "text": "👋 *Mitra — Daily Tracker*\n\n*🍽️ Food*\n• Send a *photo* of your meal\n• `/food 2 rotis and dal` — log by text\n• `/food summary` — today's food \\+ water\n• `/food weekly` — last 7 days\n• `/food monthly` — last 30 days\n\n*💧 Water*\n• `/water` — log 1 glass \\(250ml\\)\n• `/water 2` — log 2 glasses \\(500ml\\)\n• `/water 500` — log 500ml direct\n• `/water summary` — today's water intake\n• `/water weekly` — last 7 days\n• `/water monthly` — last 30 days\n\n_Targets: 2000 kcal · 3000ml water_",
+        "additionalFields": {
+          "parse_mode": "Markdown",
+          "appendAttribution": false
+        }
+      },
+      "id": "send-help",
+      "name": "Send Help",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        660,
+        780
+      ],
+      "credentials": {
+        "telegramApi": {
+          "id": "61YafmlNQxmiGwcT",
+          "name": "Mitra Telegram Bot"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": false,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ ($json.message.text || '').toLowerCase() }}",
+              "rightValue": "summary",
+              "operator": {
+                "type": "string",
+                "operation": "contains",
+                "singleValue": true
+              }
+            },
+            {
+              "id": "c2",
+              "leftValue": "={{ ($json.message.text || '').toLowerCase() }}",
+              "rightValue": "today",
+              "operator": {
+                "type": "string",
+                "operation": "contains",
+                "singleValue": true
+              }
+            },
+            {
+              "id": "c3",
+              "leftValue": "={{ ($json.message.text || '').toLowerCase() }}",
+              "rightValue": "week",
+              "operator": {
+                "type": "string",
+                "operation": "contains",
+                "singleValue": true
+              }
+            },
+            {
+              "id": "c4",
+              "leftValue": "={{ ($json.message.text || '').toLowerCase() }}",
+              "rightValue": "month",
+              "operator": {
+                "type": "string",
+                "operation": "contains",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "or"
+        },
+        "options": {}
+      },
+      "id": "water-router",
+      "name": "Water Router",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        660,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "read",
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{ $env.SPREADSHEET_ID }}"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "Water"
+        },
+        "options": {}
+      },
+      "id": "read-water-only",
+      "name": "Read Water Only",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        880,
+        80
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "gsheets001",
+          "name": "Google Sheets"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const today = new Date().toISOString().split('T')[0];\nconst text = ($('Telegram Trigger').first().json.message.text || '').toLowerCase();\n\nlet days = 1, periodLabel = 'Today';\nif (text.includes('month')) { days = 30; periodLabel = 'This Month (30 days)'; }\nelse if (text.includes('week')) { days = 7; periodLabel = 'This Week (7 days)'; }\n\nconst startDate = new Date();\nstartDate.setDate(startDate.getDate() - (days - 1));\nconst startDateStr = startDate.toISOString().split('T')[0];\nconst inRange = d => d >= startDateStr && d <= today;\n\nconst rows = $input.all().filter(r => inRange(r.json.date));\nconst target = 3000 * days;\nconst total = rows.reduce((s, r) => s + (parseFloat(r.json.ml) || 0), 0);\nconst pct = Math.round((total / target) * 100);\n\nconst filled = Math.min(Math.floor((total / target) * 10), 10);\nlet bar = ''; for (let i = 0; i < 10; i++) bar += i < filled ? '🟦' : '⬜';\n\nconst chatId = $('Telegram Trigger').first().json.message.chat.id;\nconst dateRange = days === 1\n  ? new Date().toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'short' })\n  : `${startDateStr} → ${today}`;\n\nlet msg = `💧 *Water Summary — ${periodLabel}*\\n_${dateRange}_\\n\\n${bar}\\n`;\n\nif (days > 1) {\n  msg += `Total: *${total}ml* | Avg: *${Math.round(total / days)}ml/day*\\n`;\n  msg += `Target: ${target}ml (${pct}%)`;\n} else {\n  msg += `${total}ml / ${target}ml (${pct}%)`;\n  const remaining = Math.max(0, target - total);\n  if (remaining > 0) msg += `\\n${remaining}ml more to reach your goal!`;\n  else msg += `\\n🎉 Daily water goal reached!`;\n}\n\nif (days === 1 && rows.length > 0) {\n  const logs = rows.map(r => `  • ${r.json.time}: ${r.json.ml}ml`).join('\\n');\n  msg += `\\n\\n🕐 *Logs (${rows.length})*\\n${logs}`;\n}\n\nreturn [{ json: { reply: msg, chat_id: chatId } }];"
+      },
+      "id": "build-water-summary",
+      "name": "Build Water Summary",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1100,
+        80
+      ]
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $json.chat_id }}",
+        "text": "={{ $json.reply }}",
+        "additionalFields": {
+          "parse_mode": "Markdown",
+          "appendAttribution": false
+        }
+      },
+      "id": "send-water-summary",
+      "name": "Send Water Summary",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        1320,
+        80
+      ],
+      "credentials": {
+        "telegramApi": {
+          "id": "61YafmlNQxmiGwcT",
+          "name": "Mitra Telegram Bot"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": false,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "w1",
+              "leftValue": "={{ $json.message.text || '' }}",
+              "rightValue": "/water",
+              "operator": {
+                "type": "string",
+                "operation": "startsWith",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "water-check",
+      "name": "Water Check",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        440,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": false,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "h1",
+              "leftValue": "={{ $json.message.text || '' }}",
+              "rightValue": "/help",
+              "operator": {
+                "type": "string",
+                "operation": "startsWith",
+                "singleValue": true
+              }
+            },
+            {
+              "id": "h2",
+              "leftValue": "={{ $json.message.text || '' }}",
+              "rightValue": "/start",
+              "operator": {
+                "type": "string",
+                "operation": "startsWith",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "or"
+        },
+        "options": {}
+      },
+      "id": "help-check",
+      "name": "Help Check",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        440,
+        420
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": false,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "p1",
+              "leftValue": "={{ !!($json.message.photo && $json.message.photo.length > 0) }}",
+              "operator": {
+                "type": "boolean",
+                "operation": "true"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "photo-check",
+      "name": "Photo Check",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        660,
+        560
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": false,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "s1",
+              "leftValue": "={{ ($json.message.text || '').toLowerCase() }}",
+              "rightValue": "summary",
+              "operator": {
+                "type": "string",
+                "operation": "contains",
+                "singleValue": true
+              }
+            },
+            {
+              "id": "s2",
+              "leftValue": "={{ ($json.message.text || '').toLowerCase() }}",
+              "rightValue": "today",
+              "operator": {
+                "type": "string",
+                "operation": "contains",
+                "singleValue": true
+              }
+            },
+            {
+              "id": "s3",
+              "leftValue": "={{ ($json.message.text || '').toLowerCase() }}",
+              "rightValue": "week",
+              "operator": {
+                "type": "string",
+                "operation": "contains",
+                "singleValue": true
+              }
+            },
+            {
+              "id": "s4",
+              "leftValue": "={{ ($json.message.text || '').toLowerCase() }}",
+              "rightValue": "month",
+              "operator": {
+                "type": "string",
+                "operation": "contains",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "or"
+        },
+        "options": {}
+      },
+      "id": "summary-check",
+      "name": "Summary Check",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        660,
+        720
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": false,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "f1",
+              "leftValue": "={{ $json.message.text || '' }}",
+              "rightValue": "/food",
+              "operator": {
+                "type": "string",
+                "operation": "startsWith",
+                "singleValue": true
+              }
+            },
+            {
+              "id": "f2",
+              "leftValue": "={{ !!($json.message.photo && $json.message.photo.length > 0) }}",
+              "operator": {
+                "type": "boolean",
+                "operation": "true"
+              }
+            }
+          ],
+          "combinator": "or"
+        },
+        "options": {}
+      },
+      "id": "food-check",
+      "name": "Food Check",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        440,
+        600
+      ]
+    }
+  ],
+  "connections": {
+    "Telegram Trigger": {
+      "main": [
+        [
+          {
+            "node": "Water Check",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Photo File": {
+      "main": [
+        [
+          {
+            "node": "Download Photo",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Download Photo": {
+      "main": [
+        [
+          {
+            "node": "Upload to Gemini Files",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Upload to Gemini Files": {
+      "main": [
+        [
+          {
+            "node": "Encode Photo",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Encode Photo": {
+      "main": [
+        [
+          {
+            "node": "Gemini Food Analysis",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gemini Food Analysis": {
+      "main": [
+        [
+          {
+            "node": "Parse Nutrition",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Nutrition": {
+      "main": [
+        [
+          {
+            "node": "Send Calorie Reply",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Save Meal to Sheets",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Water Command": {
+      "main": [
+        [
+          {
+            "node": "Save Water to Sheets",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Save Water to Sheets": {
+      "main": [
+        [
+          {
+            "node": "Read Today Water",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Today Water": {
+      "main": [
+        [
+          {
+            "node": "Format Water Reply",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Water Reply": {
+      "main": [
+        [
+          {
+            "node": "Send Water Reply",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Meals Today": {
+      "main": [
+        [
+          {
+            "node": "Build Daily Summary",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Daily Summary": {
+      "main": [
+        [
+          {
+            "node": "Send Summary",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Text Food Request": {
+      "main": [
+        [
+          {
+            "node": "Gemini Food Analysis",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Water Router": {
+      "main": [
+        [
+          {
+            "node": "Read Water Only",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Parse Water Command",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Water Only": {
+      "main": [
+        [
+          {
+            "node": "Build Water Summary",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Water Summary": {
+      "main": [
+        [
+          {
+            "node": "Send Water Summary",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Water Check": {
+      "main": [
+        [
+          {
+            "node": "Water Router",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Food Check",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Food Check": {
+      "main": [
+        [
+          {
+            "node": "Photo Check",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Help Check",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Help Check": {
+      "main": [
+        [
+          {
+            "node": "Send Help",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "Photo Check": {
+      "main": [
+        [
+          {
+            "node": "Get Photo File",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Summary Check",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Summary Check": {
+      "main": [
+        [
+          {
+            "node": "Read Meals Today",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Build Text Food Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "tags": [
+    {
+      "name": "mitra"
+    }
+  ],
+  "active": false
+}
