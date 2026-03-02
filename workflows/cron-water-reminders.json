@@ -7,7 +7,7 @@
           "interval": [
             {
               "field": "cronExpression",
-              "expression": "0 8-22 * * *"
+              "expression": "30 2-16 * * *"
             }
           ]
         }
@@ -53,7 +53,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const today = new Date().toISOString().split('T')[0];\nconst rows = $input.all();\nconst todayTotal = rows\n  .filter(r => r.json.date === today)\n  .reduce((sum, r) => sum + (parseFloat(r.json.ml) || 0), 0);\n\nconst target = 3000;\nconst remaining = target - todayTotal;\nconst hour = new Date().getHours();\nconst hoursLeft = 22 - hour;\n\n// Expected ml by this hour (linear: 8am-10pm = 14 hours)\nconst hoursPassed = Math.max(0, hour - 8);\nconst expectedByNow = Math.round((hoursPassed / 14) * target);\n\nconst shouldAlert = todayTotal < expectedByNow;\nlet msg = '';\n\nif (shouldAlert) {\n  msg = `\ud83d\udca7 *Water Reminder*\\n\\nYou've had ${todayTotal}ml / ${target}ml today.\\n${remaining}ml more in ${hoursLeft} hours.\\n\\n`;\n  if (todayTotal === 0) msg += 'Time to start hydrating! \ud83e\udd64';\n  else if (todayTotal < 500) msg += \"You're behind \u2014 try to catch up!\";\n  else msg += `Almost there! Just ${remaining}ml more.`;\n}\n\nreturn [{ json: { shouldAlert, message: msg, total: todayTotal, target } }];"
+        "jsCode": "// Use IST timezone (UTC+5:30) for all time calculations\nconst now = new Date();\nconst istOffset = 5.5 * 60 * 60 * 1000;\nconst istNow = new Date(now.getTime() + istOffset);\n\nconst today = istNow.toISOString().split('T')[0];\nconst hour = istNow.getUTCHours();  // hours in IST\n\nconst rows = $input.all();\nconst todayTotal = rows\n  .filter(r => r.json.date === today)\n  .reduce((sum, r) => sum + (parseFloat(r.json.ml) || 0), 0);\n\nconst target = 3000;\nconst remaining = target - todayTotal;\nconst hoursLeft = 22 - hour;\n\n// Expected ml by this hour (linear: 8am-10pm IST = 14 hours)\nconst hoursPassed = Math.max(0, hour - 8);\nconst expectedByNow = Math.round((hoursPassed / 14) * target);\n\nif (todayTotal >= expectedByNow) {\n  return [];  // On track — stop here, no alert needed\n}\n\nlet msg = `\ud83d\udca7 <b>Water Reminder</b>\\n\\nYou've had ${todayTotal}ml / ${target}ml today.\\n${remaining}ml more in ${hoursLeft} hours.\\n\\n`;\nif (todayTotal === 0) msg += 'Time to start hydrating! \ud83e\udd64';\nelse if (todayTotal < 500) msg += \"You're behind - try to catch up!\";\nelse msg += `Almost there! Just ${remaining}ml more.`;\n\nreturn [{ json: { message: msg, total: todayTotal, target, hour, expectedByNow } }];"
       },
       "id": "check-water",
       "name": "Check Water Progress",
@@ -66,34 +66,10 @@
     },
     {
       "parameters": {
-        "conditions": {
-          "conditions": [
-            {
-              "leftValue": "={{ $json.shouldAlert }}",
-              "rightValue": true,
-              "operator": {
-                "type": "boolean",
-                "operation": "true"
-              }
-            }
-          ]
-        }
-      },
-      "id": "should-alert",
-      "name": "Behind Schedule?",
-      "type": "n8n-nodes-base.if",
-      "typeVersion": 2,
-      "position": [
-        880,
-        300
-      ]
-    },
-    {
-      "parameters": {
         "chatId": "={{ $env.TELEGRAM_CHAT_ID }}",
         "text": "={{ $json.message }}",
         "additionalFields": {
-          "parse_mode": "Markdown",
+          "parse_mode": "HTML",
           "appendAttribution": false
         }
       },
@@ -102,7 +78,7 @@
       "type": "n8n-nodes-base.telegram",
       "typeVersion": 1.2,
       "position": [
-        1100,
+        880,
         260
       ],
       "credentials": {
@@ -140,23 +116,11 @@
       "main": [
         [
           {
-            "node": "Behind Schedule?",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Behind Schedule?": {
-      "main": [
-        [
-          {
             "node": "Send Water Reminder",
             "type": "main",
             "index": 0
           }
-        ],
-        []
+        ]
       ]
     }
   },
