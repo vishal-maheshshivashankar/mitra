@@ -7,7 +7,7 @@
           "interval": [
             {
               "field": "cronExpression",
-              "expression": "30 2-16 * * *"
+              "expression": "30 8-22 * * *"
             }
           ]
         }
