@@ -1,0 +1,347 @@
+{
+  "name": "AI Resume Builder - Telegram",
+  "nodes": [
+    {
+      "parameters": {
+        "updates": ["message"],
+        "additionalFields": {}
+      },
+      "id": "node-tg-trigger",
+      "name": "Telegram Trigger",
+      "type": "n8n-nodes-base.telegramTrigger",
+      "typeVersion": 1.1,
+      "position": [0, 300],
+      "webhookId": "resume-builder-tg-v1",
+      "credentials": {
+        "telegramApi": {
+          "id": "61YafmlNQxmiGwcT",
+          "name": "Mitra Telegram Bot"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const msg = $input.item.json.message || {};\nconst chatId = msg.chat?.id;\nconst text = (msg.text || '').trim();\n\nif (!chatId || !text) {\n  // Not a text message (photo, sticker, etc.) — let other workflows handle it\n  return [];\n}\n\nconst lower = text.toLowerCase();\n\n// /start or /help → show welcome\nif (lower === '/start' || lower === '/help' || lower.startsWith('/start ') || lower.startsWith('/help ')) {\n  return [{ json: { type: 'welcome', chatId, text } }];\n}\n\n// /resume [job description] → generate resume\nif (lower.startsWith('/resume')) {\n  const jd = text.replace(/^\\/resume\\s*/i, '').trim();\n  if (!jd) {\n    // /resume with no content → prompt user\n    return [{ json: { type: 'prompt_jd', chatId, text } }];\n  }\n  return [{ json: { type: 'resume', chatId, jobDescription: jd } }];\n}\n\n// Plain long text (> 200 chars) not starting with / → treat as job description\nif (text.length > 200 && !text.startsWith('/')) {\n  return [{ json: { type: 'resume', chatId, jobDescription: text } }];\n}\n\n// Unknown short text or other commands → ignore (let Mitra handle water, etc.)\nreturn [];"
+      },
+      "id": "node-parse-msg",
+      "name": "Parse Message",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [220, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": false,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "check-welcome",
+              "leftValue": "={{ $json.type }}",
+              "rightValue": "welcome",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "or"
+        },
+        "options": {}
+      },
+      "id": "node-if-welcome",
+      "name": "Is Welcome?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [440, 300]
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $json.chatId }}",
+        "text": "👋 <b>AI Resume Builder</b>\n\nI'll generate an ATS-optimized, tailored PDF resume for any job description using Claude AI + LaTeX.\n\n<b>How to use:</b>\n<code>/resume [paste job description here]</code>\n\nOr just paste a job description (200+ chars) directly.\n\n<b>Example:</b>\n<code>/resume We are looking for a Senior Backend Engineer with 5+ years of Python experience, expertise in Kubernetes, and strong ML infrastructure background...</code>\n\n⏱ Takes ~30 seconds. I'll send the PDF when ready.",
+        "additionalFields": {
+          "parse_mode": "HTML",
+          "appendAttribution": false
+        }
+      },
+      "id": "node-send-welcome",
+      "name": "Send Welcome",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [660, 120],
+      "credentials": {
+        "telegramApi": {
+          "id": "61YafmlNQxmiGwcT",
+          "name": "Mitra Telegram Bot"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": false,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "check-prompt-jd",
+              "leftValue": "={{ $json.type }}",
+              "rightValue": "prompt_jd",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "or"
+        },
+        "options": {}
+      },
+      "id": "node-if-prompt",
+      "name": "Needs JD Prompt?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [660, 400]
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $json.chatId }}",
+        "text": "📋 Please send the job description after /resume:\n\n<code>/resume Senior Backend Engineer at Acme Corp. We are looking for 5+ years Python, Kubernetes expertise, ML background...</code>\n\nOr just paste the full JD text directly (no command needed for long text).",
+        "additionalFields": {
+          "parse_mode": "HTML",
+          "appendAttribution": false
+        }
+      },
+      "id": "node-send-prompt",
+      "name": "Ask for JD",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [880, 300],
+      "credentials": {
+        "telegramApi": {
+          "id": "61YafmlNQxmiGwcT",
+          "name": "Mitra Telegram Bot"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $json.chatId }}",
+        "text": "⚙️ <b>Generating your resume...</b>\n\nThis takes ~30 seconds:\n• Analyzing job description\n• Optimizing resume with Claude AI\n• Compiling PDF with LaTeX\n\nStand by!",
+        "additionalFields": {
+          "parse_mode": "HTML",
+          "appendAttribution": false
+        }
+      },
+      "id": "node-send-ack",
+      "name": "Send Generating Ack",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [880, 520],
+      "credentials": {
+        "telegramApi": {
+          "id": "61YafmlNQxmiGwcT",
+          "name": "Mitra Telegram Bot"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "assign-resume",
+              "name": "defaultResume",
+              "value": "Name: Vishal M\nEmail: vishal.maheshshivashankar@gmail.com\nRole: Senior Member Technical Team | Perfios Software Pvt Ltd | 4 Years\nLocation: Bengaluru, Karnataka, India\n\nSUMMARY:\nSenior Software Engineer with 4 years of specialized experience in backend systems, ML infrastructure, and LLM integration. Expert in designing scalable microservices using Python, Celery, and Kubernetes. Proven track record of reducing operational costs by 35% and processing 30K+ daily requests. Passionate about MLOps automation, end-to-end data pipelines, and AI/LLM-powered intelligent document processing.\n\nEDUCATION:\n- BE in Computer Science\n- PUC in PCME\n- SSLC\n\nCERTIFICATIONS:\n- AWS Cloud Practitioner\n\nSKILLS:\nLanguages: Python\nQueuing/Messaging: Celery, Redis, Kafka\nCloud: GCP, AWS (ECS, S3, Lambda), Vertex AI\nOrchestration: Kubernetes, Docker\nData Engineering: Apache Airflow, Dagster\nML/AI: MLflow, LLM Prompt Engineering, LLM Executor\nSearch: Elasticsearch, OpenSearch, Logstash, Fluentbit\nFrontend: React 18\nDevOps: GitLab CI/CD, Prometheus, Grafana, ELK Stack\nDatabases: MongoDB, PostgreSQL, DynamoDB, Redis\n\nEXPERIENCE:\n\nSenior Member Technical Team | Perfios Software Pvt Ltd | Apr 2025 - Present\n- Led development of enterprise MLOps platform automating end-to-end ML lifecycle, reducing model training time from weeks to days\n- Architected LLM Prompt Service supporting multi-backend storage (MongoDB, PostgreSQL, Redis, DynamoDB) with versioning and environment labeling\n- Built LLM Executor Service consolidating 15+ ML containers into unified system, reducing infrastructure costs by 60%\n- Designed intelligent deduplication system using Elasticsearch achieving 20% reduction in duplicate transaction processing\n- Developed Search APIs handling 100K+ daily queries with sub-second response time using advanced indexing strategies\n- Established monitoring and observability framework using Prometheus, Grafana, and ELK stack for production ML systems\n\nSoftware Development Engineer | Perfios Software Pvt Ltd | Aug 2022 - Mar 2025\n- Architected ML Executor Service deploying 20+ models on Kubernetes, processing 30,000+ daily requests with 99.9% uptime\n- Designed enterprise-scale DataLake using Airflow and Dagster managing 50TB+ structured data for analytics and ML training\n- Implemented checksum-based deduplication reducing duplicate processing by 40% and saving significant compute resources\n- Built comprehensive metrics tracking system for TAT analysis, ML vs GT comparison, and document quality assessment\n- Migrated critical services from AWS ECS to Kubernetes, improving scalability and reducing operational costs by 35%\n- Created automated data curation pipelines generating high-quality training datasets for continuous model improvement\n\nSDE Intern | Perfios Software Solutions Pvt Ltd | Feb 2022 - Jun 2022\n- Developed and trained ML models in Google Vertex AI for KYC document classification and field extraction\n- Built serverless deployment platform using AWS Lambda enabling rapid model deployment with auto-scaling\n- Implemented CI/CD pipelines using GitLab for automated testing and deployment of ML models\n- Contributed to 3x faster inference time through model quantization and batching\n\nKEY PROJECTS:\n1. ML Executor Service: Async ML inference (Celery, Redis, Kafka), 20+ models, 30K+ daily requests, 99.9% uptime, 35% cost reduction\n2. DataLake: Enterprise datalake (Airflow, Dagster), 50TB+ data, 40% deduplication reduction\n3. Search and Deduplication: 100K+ daily documents, sub-second queries, $50K+ annual cost savings\n4. MLOps Platform: End-to-end automation with MLflow, 50+ model versions, weeks-to-days training time\n5. LLM Prompt Store: Multi-backend (MongoDB, PostgreSQL, Redis, DynamoDB), React 18 UI, 90% latency reduction\n6. LLM Executor Service: Consolidated 15+ containers, 60% infrastructure cost reduction, days-to-hours deployment\n7. Translation Service: Google Cloud Translation + Redis caching, 70% API cost reduction\n\nPERSONAL PROJECTS:\n- ORBIT Finance Manager: Telegram bot + Gmail API + Gemini AI categorization, 98% transaction accuracy, natural language query interface",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "node-default-resume",
+      "name": "Default Resume Data",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [1100, 520]
+    },
+    {
+      "parameters": {
+        "jsCode": "const jobDescription = $('Parse Message').item.json.jobDescription;\nconst chatId = $('Parse Message').item.json.chatId;\nconst resumeText = $json.defaultResume;\n\nconst systemPrompt = `You are an elite resume writer and ATS optimization specialist.\nYour job: produce a LaTeX resume that maximally matches the job description and passes ATS screening.\n\n## OPTIMIZATION STEPS\n1. Extract all required/preferred skills, tools, cloud services, and keywords from the JD\n2. Mirror those EXACT keywords in the resume (ATS keyword matching)\n3. Reorder experience bullets - most JD-relevant achievements come first\n4. Every bullet must have a quantified metric (%, $, x faster, # requests, # users)\n5. Use strong action verbs: Architected, Engineered, Spearheaded, Automated, Reduced, Scaled\n6. Remove irrelevant content; add context that reinforces JD requirements\n\n## LATEX RULES\n- Use ONLY these packages: geometry, hyperref, enumitem, titlesec, parskip, fontenc, inputenc, array, booktabs\n- DO NOT use: fontawesome, fontawesome5, moderncv, tikz\n- Clean single-column layout (ATS-friendly)\n- Font size: 10pt or 11pt, margins: 0.65in-0.75in\n- Section headers: bold with horizontal rule\n- Bullet points: tight spacing with enumitem\n- Hyperlinked email\n- Target: 1 page\n\n## OUTPUT FORMAT\nReturn ONLY valid compilable LaTeX. Start with documentclass, end with end{document}. No markdown, no fences.`;\n\nconst userPrompt = `Optimize and rewrite this resume for the job description below.\n\n=== JOB DESCRIPTION ===\n${jobDescription}\n\n=== CANDIDATE RESUME ===\n${resumeText}\n\nReturn ONLY LaTeX code.`;\n\n// Build the full Claude API body here to avoid JSON injection in HTTP node\nconst claudeBody = {\n  model: 'claude-sonnet-4-6',\n  max_tokens: 4096,\n  system: systemPrompt,\n  messages: [\n    { role: 'user', content: userPrompt }\n  ]\n};\n\nreturn [{\n  json: {\n    chatId,\n    jobDescription,\n    claudeBody,\n    startTime: Date.now()\n  }\n}];"
+      },
+      "id": "node-build-prompt",
+      "name": "Build Claude Prompt",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1320, 520]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.anthropic.com/v1/messages",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "x-api-key",
+              "value": "={{ $env.ANTHROPIC_API_KEY }}"
+            },
+            {
+              "name": "anthropic-version",
+              "value": "2023-06-01"
+            },
+            {
+              "name": "content-type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ $json.claudeBody }}",
+        "options": {
+          "timeout": 120000
+        }
+      },
+      "id": "node-claude-api",
+      "name": "Claude AI",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1540, 520]
+    },
+    {
+      "parameters": {
+        "jsCode": "const claudeResponse = $input.item.json;\nconst promptData = $('Build Claude Prompt').item.json;\n\nlet latexCode = '';\nif (claudeResponse.content && Array.isArray(claudeResponse.content)) {\n  for (const block of claudeResponse.content) {\n    if (block.type === 'text' && block.text) {\n      latexCode = block.text;\n      break;\n    }\n  }\n}\n\nif (!latexCode) {\n  throw new Error('Claude returned empty response: ' + JSON.stringify(claudeResponse).substring(0, 200));\n}\n\n// Strip markdown fences if present\nlatexCode = latexCode\n  .replace(/^```(?:latex|tex|\\s*)?\\n?/i, '')\n  .replace(/\\n?```\\s*$/i, '')\n  .trim();\n\nif (!latexCode.includes('\\\\documentclass')) {\n  throw new Error('Invalid LaTeX from Claude: ' + latexCode.substring(0, 200));\n}\n\nif (!latexCode.includes('\\\\end{document}')) {\n  latexCode += '\\n\\\\end{document}';\n}\n\nconst model = claudeResponse.model || 'claude-opus-4-6';\nconst inputTokens = claudeResponse.usage?.input_tokens || 0;\nconst outputTokens = claudeResponse.usage?.output_tokens || 0;\nconst elapsed = Math.round((Date.now() - (promptData.startTime || Date.now())) / 1000);\n\nreturn [{\n  json: {\n    latexCode,\n    chatId: promptData.chatId,\n    model,\n    inputTokens,\n    outputTokens,\n    elapsedSec: elapsed,\n    lineCount: latexCode.split('\\n').length\n  }\n}];"
+      },
+      "id": "node-extract-latex",
+      "name": "Extract LaTeX",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1760, 520]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.LATEX_COMPILER_URL }}/compile",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\"source\": {{ JSON.stringify($json.latexCode) }}, \"filename\": \"resume\"}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "file"
+            }
+          },
+          "timeout": 90000
+        }
+      },
+      "id": "node-compile-pdf",
+      "name": "Compile PDF",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1980, 520]
+    },
+    {
+      "parameters": {
+        "resource": "message",
+        "operation": "sendDocument",
+        "chatId": "={{ $('Extract LaTeX').item.json.chatId }}",
+        "binaryData": true,
+        "binaryPropertyName": "data",
+        "additionalFields": {
+          "caption": "=✅ <b>Resume ready!</b>\n\n📊 <b>Stats:</b>\n• Model: {{ $('Extract LaTeX').item.json.model }}\n• Tokens: {{ $('Extract LaTeX').item.json.inputTokens }} in / {{ $('Extract LaTeX').item.json.outputTokens }} out\n• LaTeX: {{ $('Extract LaTeX').item.json.lineCount }} lines\n• Total time: {{ $('Extract LaTeX').item.json.elapsedSec }}s\n\n💡 Open the PDF — it's ATS-optimized for your job description.",
+          "parse_mode": "HTML"
+        }
+      },
+      "id": "node-send-pdf",
+      "name": "Send PDF",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [2200, 520],
+      "credentials": {
+        "telegramApi": {
+          "id": "61YafmlNQxmiGwcT",
+          "name": "Mitra Telegram Bot"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Telegram Trigger": {
+      "main": [
+        [{"node": "Parse Message", "type": "main", "index": 0}]
+      ]
+    },
+    "Parse Message": {
+      "main": [
+        [{"node": "Is Welcome?", "type": "main", "index": 0}]
+      ]
+    },
+    "Is Welcome?": {
+      "main": [
+        [{"node": "Send Welcome", "type": "main", "index": 0}],
+        [{"node": "Needs JD Prompt?", "type": "main", "index": 0}]
+      ]
+    },
+    "Needs JD Prompt?": {
+      "main": [
+        [{"node": "Ask for JD", "type": "main", "index": 0}],
+        [{"node": "Send Generating Ack", "type": "main", "index": 0}]
+      ]
+    },
+    "Send Generating Ack": {
+      "main": [
+        [{"node": "Default Resume Data", "type": "main", "index": 0}]
+      ]
+    },
+    "Default Resume Data": {
+      "main": [
+        [{"node": "Build Claude Prompt", "type": "main", "index": 0}]
+      ]
+    },
+    "Build Claude Prompt": {
+      "main": [
+        [{"node": "Claude AI", "type": "main", "index": 0}]
+      ]
+    },
+    "Claude AI": {
+      "main": [
+        [{"node": "Extract LaTeX", "type": "main", "index": 0}]
+      ]
+    },
+    "Extract LaTeX": {
+      "main": [
+        [{"node": "Compile PDF", "type": "main", "index": 0}]
+      ]
+    },
+    "Compile PDF": {
+      "main": [
+        [{"node": "Send PDF", "type": "main", "index": 0}]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "id": "ai-resume-telegram-001",
+  "meta": {
+    "templateCredsSetupCompleted": false
+  }
+}
