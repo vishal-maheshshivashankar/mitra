@@ -3,14 +3,19 @@
   "nodes": [
     {
       "parameters": {
-        "updates": ["message"],
+        "updates": [
+          "message"
+        ],
         "additionalFields": {}
       },
       "id": "node-tg-trigger",
       "name": "Telegram Trigger",
       "type": "n8n-nodes-base.telegramTrigger",
       "typeVersion": 1.1,
-      "position": [0, 300],
+      "position": [
+        0,
+        300
+      ],
       "webhookId": "resume-builder-tg-v1",
       "credentials": {
         "telegramApi": {
@@ -21,13 +26,16 @@
     },
     {
       "parameters": {
-        "jsCode": "const msg = $input.item.json.message || {};\nconst chatId = msg.chat?.id;\nconst text = (msg.text || '').trim();\n\nif (!chatId || !text) {\n  // Not a text message (photo, sticker, etc.) — let other workflows handle it\n  return [];\n}\n\nconst lower = text.toLowerCase();\n\n// /start or /help → show welcome\nif (lower === '/start' || lower === '/help' || lower.startsWith('/start ') || lower.startsWith('/help ')) {\n  return [{ json: { type: 'welcome', chatId, text } }];\n}\n\n// /resume [job description] → generate resume\nif (lower.startsWith('/resume')) {\n  const jd = text.replace(/^\\/resume\\s*/i, '').trim();\n  if (!jd) {\n    // /resume with no content → prompt user\n    return [{ json: { type: 'prompt_jd', chatId, text } }];\n  }\n  return [{ json: { type: 'resume', chatId, jobDescription: jd } }];\n}\n\n// Plain long text (> 200 chars) not starting with / → treat as job description\nif (text.length > 200 && !text.startsWith('/')) {\n  return [{ json: { type: 'resume', chatId, jobDescription: text } }];\n}\n\n// Unknown short text or other commands → ignore (let Mitra handle water, etc.)\nreturn [];"
+        "jsCode": "const msg = $input.item.json.message || {};\nconst chatId = msg.chat?.id;\nconst text = (msg.text || '').trim();\n\nif (!chatId || !text) {\n  // Not a text message (photo, sticker, etc.) \u2014 let other workflows handle it\n  return [];\n}\n\nconst lower = text.toLowerCase();\n\n// /start or /help \u2192 show welcome\nif (lower === '/start' || lower === '/help' || lower.startsWith('/start ') || lower.startsWith('/help ')) {\n  return [{ json: { type: 'welcome', chatId, text } }];\n}\n\n// /resume [job description] \u2192 generate resume\nif (lower.startsWith('/resume')) {\n  const jd = text.replace(/^\\/resume\\s*/i, '').trim();\n  if (!jd) {\n    // /resume with no content \u2192 prompt user\n    return [{ json: { type: 'prompt_jd', chatId, text } }];\n  }\n  return [{ json: { type: 'resume', chatId, jobDescription: jd } }];\n}\n\n// Plain long text (> 200 chars) not starting with / \u2192 treat as job description\nif (text.length > 200 && !text.startsWith('/')) {\n  return [{ json: { type: 'resume', chatId, jobDescription: text } }];\n}\n\n// Unknown short text or other commands \u2192 ignore (let Mitra handle water, etc.)\nreturn [];"
       },
       "id": "node-parse-msg",
       "name": "Parse Message",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [220, 300]
+      "position": [
+        220,
+        300
+      ]
     },
     {
       "parameters": {
@@ -56,12 +64,15 @@
       "name": "Is Welcome?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
-      "position": [440, 300]
+      "position": [
+        440,
+        300
+      ]
     },
     {
       "parameters": {
         "chatId": "={{ $json.chatId }}",
-        "text": "👋 <b>AI Resume Builder</b>\n\nI'll generate an ATS-optimized, tailored PDF resume for any job description using Claude AI + LaTeX.\n\n<b>How to use:</b>\n<code>/resume [paste job description here]</code>\n\nOr just paste a job description (200+ chars) directly.\n\n<b>Example:</b>\n<code>/resume We are looking for a Senior Backend Engineer with 5+ years of Python experience, expertise in Kubernetes, and strong ML infrastructure background...</code>\n\n⏱ Takes ~30 seconds. I'll send the PDF when ready.",
+        "text": "\ud83d\udc4b <b>AI Resume Builder</b>\n\nI'll generate an ATS-optimized, tailored PDF resume for any job description using Claude AI + LaTeX.\n\n<b>How to use:</b>\n<code>/resume [paste job description here]</code>\n\nOr just paste a job description (200+ chars) directly.\n\n<b>Example:</b>\n<code>/resume We are looking for a Senior Backend Engineer with 5+ years of Python experience, expertise in Kubernetes, and strong ML infrastructure background...</code>\n\n\u23f1 Takes ~30 seconds. I'll send the PDF when ready.",
         "additionalFields": {
           "parse_mode": "HTML",
           "appendAttribution": false
@@ -71,7 +82,10 @@
       "name": "Send Welcome",
       "type": "n8n-nodes-base.telegram",
       "typeVersion": 1.2,
-      "position": [660, 120],
+      "position": [
+        660,
+        120
+      ],
       "credentials": {
         "telegramApi": {
           "id": "61YafmlNQxmiGwcT",
@@ -106,12 +120,15 @@
       "name": "Needs JD Prompt?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
-      "position": [660, 400]
+      "position": [
+        660,
+        400
+      ]
     },
     {
       "parameters": {
         "chatId": "={{ $json.chatId }}",
-        "text": "📋 Please send the job description after /resume:\n\n<code>/resume Senior Backend Engineer at Acme Corp. We are looking for 5+ years Python, Kubernetes expertise, ML background...</code>\n\nOr just paste the full JD text directly (no command needed for long text).",
+        "text": "\ud83d\udccb Please send the job description after /resume:\n\n<code>/resume Senior Backend Engineer at Acme Corp. We are looking for 5+ years Python, Kubernetes expertise, ML background...</code>\n\nOr just paste the full JD text directly (no command needed for long text).",
         "additionalFields": {
           "parse_mode": "HTML",
           "appendAttribution": false
@@ -121,7 +138,10 @@
       "name": "Ask for JD",
       "type": "n8n-nodes-base.telegram",
       "typeVersion": 1.2,
-      "position": [880, 300],
+      "position": [
+        880,
+        300
+      ],
       "credentials": {
         "telegramApi": {
           "id": "61YafmlNQxmiGwcT",
@@ -132,7 +152,7 @@
     {
       "parameters": {
         "chatId": "={{ $json.chatId }}",
-        "text": "⚙️ <b>Generating your resume...</b>\n\nThis takes ~30 seconds:\n• Analyzing job description\n• Optimizing resume with Claude AI\n• Compiling PDF with LaTeX\n\nStand by!",
+        "text": "\u2699\ufe0f <b>Generating your resume...</b>\n\nThis takes ~30 seconds:\n\u2022 Analyzing job description\n\u2022 Optimizing resume with Claude AI\n\u2022 Compiling PDF with LaTeX\n\nStand by!",
         "additionalFields": {
           "parse_mode": "HTML",
           "appendAttribution": false
@@ -142,7 +162,10 @@
       "name": "Send Generating Ack",
       "type": "n8n-nodes-base.telegram",
       "typeVersion": 1.2,
-      "position": [880, 520],
+      "position": [
+        880,
+        520
+      ],
       "credentials": {
         "telegramApi": {
           "id": "61YafmlNQxmiGwcT",
@@ -168,7 +191,10 @@
       "name": "Default Resume Data",
       "type": "n8n-nodes-base.set",
       "typeVersion": 3.4,
-      "position": [1100, 520]
+      "position": [
+        1100,
+        520
+      ]
     },
     {
       "parameters": {
@@ -178,7 +204,10 @@
       "name": "Build Claude Prompt",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [1320, 520]
+      "position": [
+        1320,
+        520
+      ]
     },
     {
       "parameters": {
@@ -212,7 +241,10 @@
       "name": "Claude AI",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [1540, 520]
+      "position": [
+        1540,
+        520
+      ]
     },
     {
       "parameters": {
@@ -222,7 +254,10 @@
       "name": "Extract LaTeX",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [1760, 520]
+      "position": [
+        1760,
+        520
+      ]
     },
     {
       "parameters": {
@@ -253,7 +288,10 @@
       "name": "Compile PDF",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [1980, 520]
+      "position": [
+        1980,
+        520
+      ]
     },
     {
       "parameters": {
@@ -263,7 +301,7 @@
         "binaryData": true,
         "binaryPropertyName": "data",
         "additionalFields": {
-          "caption": "=✅ <b>Resume ready!</b>\n\n📊 <b>Stats:</b>\n• Model: {{ $('Extract LaTeX').item.json.model }}\n• Tokens: {{ $('Extract LaTeX').item.json.inputTokens }} in / {{ $('Extract LaTeX').item.json.outputTokens }} out\n• LaTeX: {{ $('Extract LaTeX').item.json.lineCount }} lines\n• Total time: {{ $('Extract LaTeX').item.json.elapsedSec }}s\n\n💡 Open the PDF — it's ATS-optimized for your job description.",
+          "caption": "=\u2705 <b>Resume ready!</b>\n\n\ud83d\udcca <b>Stats:</b>\n\u2022 Model: {{ $('Extract LaTeX').item.json.model }}\n\u2022 Tokens: {{ $('Extract LaTeX').item.json.inputTokens }} in / {{ $('Extract LaTeX').item.json.outputTokens }} out\n\u2022 LaTeX: {{ $('Extract LaTeX').item.json.lineCount }} lines\n\u2022 Total time: {{ $('Extract LaTeX').item.json.elapsedSec }}s\n\n\ud83d\udca1 Open the PDF \u2014 it's ATS-optimized for your job description.",
           "parse_mode": "HTML"
         }
       },
@@ -271,7 +309,10 @@
       "name": "Send PDF",
       "type": "n8n-nodes-base.telegram",
       "typeVersion": 1.2,
-      "position": [2200, 520],
+      "position": [
+        2200,
+        520
+      ],
       "credentials": {
         "telegramApi": {
           "id": "61YafmlNQxmiGwcT",
@@ -283,54 +324,126 @@
   "connections": {
     "Telegram Trigger": {
       "main": [
-        [{"node": "Parse Message", "type": "main", "index": 0}]
+        [
+          {
+            "node": "Parse Message",
+            "type": "main",
+            "index": 0
+          }
+        ]
       ]
     },
     "Parse Message": {
       "main": [
-        [{"node": "Is Welcome?", "type": "main", "index": 0}]
+        [
+          {
+            "node": "Is Welcome?",
+            "type": "main",
+            "index": 0
+          }
+        ]
       ]
     },
     "Is Welcome?": {
       "main": [
-        [{"node": "Send Welcome", "type": "main", "index": 0}],
-        [{"node": "Needs JD Prompt?", "type": "main", "index": 0}]
+        [
+          {
+            "node": "Send Welcome",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Needs JD Prompt?",
+            "type": "main",
+            "index": 0
+          }
+        ]
       ]
     },
     "Needs JD Prompt?": {
       "main": [
-        [{"node": "Ask for JD", "type": "main", "index": 0}],
-        [{"node": "Send Generating Ack", "type": "main", "index": 0}]
+        [
+          {
+            "node": "Ask for JD",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Send Generating Ack",
+            "type": "main",
+            "index": 0
+          }
+        ]
       ]
     },
     "Send Generating Ack": {
       "main": [
-        [{"node": "Default Resume Data", "type": "main", "index": 0}]
+        [
+          {
+            "node": "Default Resume Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
       ]
     },
     "Default Resume Data": {
       "main": [
-        [{"node": "Build Claude Prompt", "type": "main", "index": 0}]
+        [
+          {
+            "node": "Build Claude Prompt",
+            "type": "main",
+            "index": 0
+          }
+        ]
       ]
     },
     "Build Claude Prompt": {
       "main": [
-        [{"node": "Claude AI", "type": "main", "index": 0}]
+        [
+          {
+            "node": "Claude AI",
+            "type": "main",
+            "index": 0
+          }
+        ]
       ]
     },
     "Claude AI": {
       "main": [
-        [{"node": "Extract LaTeX", "type": "main", "index": 0}]
+        [
+          {
+            "node": "Extract LaTeX",
+            "type": "main",
+            "index": 0
+          }
+        ]
       ]
     },
     "Extract LaTeX": {
       "main": [
-        [{"node": "Compile PDF", "type": "main", "index": 0}]
+        [
+          {
+            "node": "Compile PDF",
+            "type": "main",
+            "index": 0
+          }
+        ]
       ]
     },
     "Compile PDF": {
       "main": [
-        [{"node": "Send PDF", "type": "main", "index": 0}]
+        [
+          {
+            "node": "Send PDF",
+            "type": "main",
+            "index": 0
+          }
+        ]
       ]
     }
   },

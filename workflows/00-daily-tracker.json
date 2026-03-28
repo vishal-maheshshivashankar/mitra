@@ -1,5 +1,5 @@
 {
-  "name": "Daily Tracker - Calorie & Water",
+  "name": "Mitra",
   "nodes": [
     {
       "parameters": {
@@ -149,7 +149,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const raw = $input.first().json;\nconst chatId = $('Telegram Trigger').first().json.message.chat.id;\nconst esc = s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');\n\n// Capture actual Gemini API errors (neverError:true keeps them out of node errors)\nif (raw.error) {\n  const msg = raw.error.message || JSON.stringify(raw.error).substring(0, 300);\n  const status = raw.error.status || raw.error.code || '?';\n  return [{ json: {\n    reply: `❌ <b>Gemini error [${esc(String(status))}]:</b>\\n${esc(msg)}`,\n    chat_id: chatId,\n    meal_id: '', date: new Date().toISOString().split('T')[0],\n    time: new Date().toTimeString().split(' ')[0],\n    meal_type: 'error', food_items: 'gemini_error',\n    calories: 0, protein_g: 0, carbs_g: 0, fat_g: 0, sugar_g: 0, fiber_g: 0\n  }}];\n}\n\nconst text = raw.candidates?.[0]?.content?.parts?.[0]?.text || '{}';\n\nlet parsed;\ntry {\n  const clean = text.replace(/```json\\n?|```/g, '').trim();\n  const match = clean.match(/\\{[\\s\\S]*\\}/);\n  parsed = match ? JSON.parse(match[0]) : {};\n} catch(e) {\n  parsed = {};\n}\n\nconst now = new Date();\nconst mealId = 'meal_' + now.getTime();\nconst items = (parsed.items || []).map(i => `• ${esc(i.name)} (${esc(i.portion)}): ${i.calories} kcal`).join('\\n');\nconst t = parsed.totals || {};\nconst sugarAlert = (t.sugar || 0) > 24 ? `\\n\\n⚠️ High sugar: ${t.sugar}g (limit: 30g/day)` : '';\nconst stars = '⭐'.repeat(Math.min(parsed.health_rating || 3, 5));\n\nconst reply = `🍽️ <b>Meal Logged!</b>\\n\\n${items}\\n\\n<b>Totals:</b>\\nCalories: ${t.calories || 0} kcal\\nProtein: ${t.protein || 0}g | Carbs: ${t.carbs || 0}g | Fat: ${t.fat || 0}g\\n\\nHealth: ${stars}\\n💡 ${esc(parsed.notes || '')}${sugarAlert}`;\n\nreturn [{ json: {\n  reply,\n  chat_id: chatId,\n  meal_id: mealId,\n  date: now.toISOString().split('T')[0],\n  time: now.toTimeString().split(' ')[0],\n  meal_type: parsed.meal_type || 'meal',\n  food_items: (parsed.items || []).map(i => i.name).join(', '),\n  calories: t.calories || 0,\n  protein_g: t.protein || 0,\n  carbs_g: t.carbs || 0,\n  fat_g: t.fat || 0,\n  sugar_g: t.sugar || 0,\n  fiber_g: t.fiber || 0\n}}];"
+        "jsCode": "const raw = $input.first().json;\nconst chatId = $('Telegram Trigger').first().json.message.chat.id;\nconst esc = s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');\n\n// Capture actual Gemini API errors (neverError:true keeps them out of node errors)\nif (raw.error) {\n  const msg = raw.error.message || JSON.stringify(raw.error).substring(0, 300);\n  const status = raw.error.status || raw.error.code || '?';\n  return [{ json: {\n    reply: `\u274c <b>Gemini error [${esc(String(status))}]:</b>\\n${esc(msg)}`,\n    chat_id: chatId,\n    meal_id: '', date: new Date().toISOString().split('T')[0],\n    time: new Date().toTimeString().split(' ')[0],\n    meal_type: 'error', food_items: 'gemini_error',\n    calories: 0, protein_g: 0, carbs_g: 0, fat_g: 0, sugar_g: 0, fiber_g: 0\n  }}];\n}\n\nconst text = raw.candidates?.[0]?.content?.parts?.[0]?.text || '{}';\n\nlet parsed;\ntry {\n  const clean = text.replace(/```json\\n?|```/g, '').trim();\n  const match = clean.match(/\\{[\\s\\S]*\\}/);\n  parsed = match ? JSON.parse(match[0]) : {};\n} catch(e) {\n  parsed = {};\n}\n\nconst now = new Date();\nconst mealId = 'meal_' + now.getTime();\nconst items = (parsed.items || []).map(i => `\u2022 ${esc(i.name)} (${esc(i.portion)}): ${i.calories} kcal`).join('\\n');\nconst t = parsed.totals || {};\nconst sugarAlert = (t.sugar || 0) > 24 ? `\\n\\n\u26a0\ufe0f High sugar: ${t.sugar}g (limit: 30g/day)` : '';\nconst stars = '\u2b50'.repeat(Math.min(parsed.health_rating || 3, 5));\n\nconst reply = `\ud83c\udf7d\ufe0f <b>Meal Logged!</b>\\n\\n${items}\\n\\n<b>Totals:</b>\\nCalories: ${t.calories || 0} kcal\\nProtein: ${t.protein || 0}g | Carbs: ${t.carbs || 0}g | Fat: ${t.fat || 0}g\\n\\nHealth: ${stars}\\n\ud83d\udca1 ${esc(parsed.notes || '')}${sugarAlert}`;\n\nreturn [{ json: {\n  reply,\n  chat_id: chatId,\n  meal_id: mealId,\n  date: now.toISOString().split('T')[0],\n  time: now.toTimeString().split(' ')[0],\n  meal_type: parsed.meal_type || 'meal',\n  food_items: (parsed.items || []).map(i => i.name).join(', '),\n  calories: t.calories || 0,\n  protein_g: t.protein || 0,\n  carbs_g: t.carbs || 0,\n  fat_g: t.fat || 0,\n  sugar_g: t.sugar || 0,\n  fiber_g: t.fiber || 0\n}}];"
       },
       "id": "parse-nutrition",
       "name": "Parse Nutrition",
@@ -325,7 +325,8 @@
             }
           ]
         },
-        "options": {}
+        "options": {},
+        "authentication": "serviceAccount"
       },
       "id": "save-meal",
       "name": "Save Meal to Sheets",
@@ -336,9 +337,9 @@
         180
       ],
       "credentials": {
-        "googleSheetsOAuth2Api": {
-          "id": "gsheets001",
-          "name": "Google Sheets"
+        "googleApi": {
+          "id": "fa9414e1-1db7-446e-94a2-2ffeb782e5d6",
+          "name": "Mitra Google SA"
         }
       }
     },
@@ -408,7 +409,8 @@
             }
           ]
         },
-        "options": {}
+        "options": {},
+        "authentication": "serviceAccount"
       },
       "id": "save-water",
       "name": "Save Water to Sheets",
@@ -419,9 +421,9 @@
         300
       ],
       "credentials": {
-        "googleSheetsOAuth2Api": {
-          "id": "gsheets001",
-          "name": "Google Sheets"
+        "googleApi": {
+          "id": "fa9414e1-1db7-446e-94a2-2ffeb782e5d6",
+          "name": "Mitra Google SA"
         }
       }
     },
@@ -438,7 +440,8 @@
           "mode": "name",
           "value": "Water"
         },
-        "options": {}
+        "options": {},
+        "authentication": "serviceAccount"
       },
       "id": "read-water-today",
       "name": "Read Today Water",
@@ -449,15 +452,15 @@
         300
       ],
       "credentials": {
-        "googleSheetsOAuth2Api": {
-          "id": "gsheets001",
-          "name": "Google Sheets"
+        "googleApi": {
+          "id": "fa9414e1-1db7-446e-94a2-2ffeb782e5d6",
+          "name": "Mitra Google SA"
         }
       }
     },
     {
       "parameters": {
-        "jsCode": "const today = new Date().toISOString().split('T')[0];\nconst rows = $input.all();\nconst todayTotal = rows\n  .filter(r => r.json.date === today)\n  .reduce((sum, r) => sum + (parseFloat(r.json.ml) || 0), 0);\n\nconst target = 3000;\nconst remaining = Math.max(0, target - todayTotal);\nconst percent = Math.round((todayTotal / target) * 100);\n// Bar: 10 squares, each = 200ml\nconst filled = Math.min(Math.floor(todayTotal / 200), 10);\nlet bar = '';\nfor (let i = 0; i < 10; i++) bar += i < filled ? '🟦' : '⬜';\n\nlet msg = `💧 *Water logged!*\\n\\n${bar}\\nToday: *${todayTotal}ml / ${target}ml* (${percent}%)`;\nif (remaining > 0) msg += `\\n${remaining}ml more to reach your goal!`;\nelse msg += `\\n🎉 Daily water goal reached!`;\n\nconst chatId = $('Parse Water Command').first().json.chat_id;\nreturn [{ json: { reply: msg, chat_id: chatId } }];"
+        "jsCode": "const today = new Date().toISOString().split('T')[0];\nconst rows = $input.all();\nconst todayTotal = rows\n  .filter(r => r.json.date === today)\n  .reduce((sum, r) => sum + (parseFloat(r.json.ml) || 0), 0);\n\nconst target = 3000;\nconst remaining = Math.max(0, target - todayTotal);\nconst percent = Math.round((todayTotal / target) * 100);\n// Bar: 10 squares, each = 200ml\nconst filled = Math.min(Math.floor(todayTotal / 200), 10);\nlet bar = '';\nfor (let i = 0; i < 10; i++) bar += i < filled ? '\ud83d\udfe6' : '\u2b1c';\n\nlet msg = `\ud83d\udca7 *Water logged!*\\n\\n${bar}\\nToday: *${todayTotal}ml / ${target}ml* (${percent}%)`;\nif (remaining > 0) msg += `\\n${remaining}ml more to reach your goal!`;\nelse msg += `\\n\ud83c\udf89 Daily water goal reached!`;\n\nconst chatId = $('Parse Water Command').first().json.chat_id;\nreturn [{ json: { reply: msg, chat_id: chatId } }];"
       },
       "id": "format-water-reply",
       "name": "Format Water Reply",
@@ -505,7 +508,8 @@
           "mode": "name",
           "value": "Meals"
         },
-        "options": {}
+        "options": {},
+        "authentication": "serviceAccount"
       },
       "id": "read-meals-today",
       "name": "Read Meals Today",
@@ -516,15 +520,15 @@
         500
       ],
       "credentials": {
-        "googleSheetsOAuth2Api": {
-          "id": "gsheets001",
-          "name": "Google Sheets"
+        "googleApi": {
+          "id": "fa9414e1-1db7-446e-94a2-2ffeb782e5d6",
+          "name": "Mitra Google SA"
         }
       }
     },
     {
       "parameters": {
-        "jsCode": "const today = new Date().toISOString().split('T')[0];\nconst text = ($('Telegram Trigger').first().json.message.text || '').toLowerCase();\n\nlet days = 1, periodLabel = 'Today';\nif (text.includes('month')) { days = 30; periodLabel = 'This Month (30 days)'; }\nelse if (text.includes('week')) { days = 7; periodLabel = 'This Week (7 days)'; }\n\nconst startDate = new Date();\nstartDate.setDate(startDate.getDate() - (days - 1));\nconst startDateStr = startDate.toISOString().split('T')[0];\nconst inRange = date => date >= startDateStr && date <= today;\n\nconst meals = $input.all().filter(r => inRange(r.json.date));\nconst calTarget = 2000 * days;\nconst totalCal = meals.reduce((s, r) => s + (parseFloat(r.json.calories) || 0), 0);\nconst totalProtein = meals.reduce((s, r) => s + (parseFloat(r.json.protein_g) || 0), 0);\nconst totalCarbs = meals.reduce((s, r) => s + (parseFloat(r.json.carbs_g) || 0), 0);\nconst totalFat = meals.reduce((s, r) => s + (parseFloat(r.json.fat_g) || 0), 0);\nconst totalSugar = meals.reduce((s, r) => s + (parseFloat(r.json.sugar_g) || 0), 0);\n\nconst calPct = Math.round((totalCal / calTarget) * 100);\nconst calBars = Math.min(Math.round((totalCal / calTarget) * 10), 10);\nlet calBar = ''; for (let i = 0; i < 10; i++) calBar += i < calBars ? '🟩' : '⬜';\n\nconst chatId = $('Telegram Trigger').first().json.message.chat.id;\nconst dateRange = days === 1\n  ? new Date().toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'short' })\n  : `${startDateStr} → ${today}`;\n\nlet msg = `📊 *${periodLabel}*\\n_${dateRange}_\\n\\n`;\nmsg += `🍽️ *Calories*\\n${calBar}\\n`;\nif (days > 1) msg += `Total: *${totalCal} kcal* | Avg: *${Math.round(totalCal/days)} kcal/day* (${calPct}%)\\n`;\nelse msg += `${totalCal} / ${calTarget} kcal (${calPct}%)\\n`;\nmsg += `Protein: ${totalProtein}g | Carbs: ${totalCarbs}g | Fat: ${totalFat}g`;\n\nif (days === 1) {\n  const mealList = meals.map(r => `  • ${r.json.meal_type}: ${r.json.food_items} (${r.json.calories} kcal)`).join('\\n') || '  No meals logged yet';\n  msg += `\\n\\n🥗 *Meals (${meals.length})*\\n${mealList}`;\n} else {\n  msg += `\\n\\n🥗 *Meals logged: ${meals.length}* (avg ${(meals.length/days).toFixed(1)}/day)`;\n}\n\nif (totalSugar > 30 * days) msg += `\\n\\n⚠️ High sugar: ${totalSugar}g (limit: ${30 * days}g)`;\n\nreturn [{ json: { reply: msg, chat_id: chatId } }];"
+        "jsCode": "const today = new Date().toISOString().split('T')[0];\nconst text = ($('Telegram Trigger').first().json.message.text || '').toLowerCase();\n\nlet days = 1, periodLabel = 'Today';\nif (text.includes('month')) { days = 30; periodLabel = 'This Month (30 days)'; }\nelse if (text.includes('week')) { days = 7; periodLabel = 'This Week (7 days)'; }\n\nconst startDate = new Date();\nstartDate.setDate(startDate.getDate() - (days - 1));\nconst startDateStr = startDate.toISOString().split('T')[0];\nconst inRange = date => date >= startDateStr && date <= today;\n\nconst meals = $input.all().filter(r => inRange(r.json.date));\nconst calTarget = 2000 * days;\nconst totalCal = meals.reduce((s, r) => s + (parseFloat(r.json.calories) || 0), 0);\nconst totalProtein = meals.reduce((s, r) => s + (parseFloat(r.json.protein_g) || 0), 0);\nconst totalCarbs = meals.reduce((s, r) => s + (parseFloat(r.json.carbs_g) || 0), 0);\nconst totalFat = meals.reduce((s, r) => s + (parseFloat(r.json.fat_g) || 0), 0);\nconst totalSugar = meals.reduce((s, r) => s + (parseFloat(r.json.sugar_g) || 0), 0);\n\nconst calPct = Math.round((totalCal / calTarget) * 100);\nconst calBars = Math.min(Math.round((totalCal / calTarget) * 10), 10);\nlet calBar = ''; for (let i = 0; i < 10; i++) calBar += i < calBars ? '\ud83d\udfe9' : '\u2b1c';\n\nconst chatId = $('Telegram Trigger').first().json.message.chat.id;\nconst dateRange = days === 1\n  ? new Date().toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'short' })\n  : `${startDateStr} \u2192 ${today}`;\n\nlet msg = `\ud83d\udcca *${periodLabel}*\\n_${dateRange}_\\n\\n`;\nmsg += `\ud83c\udf7d\ufe0f *Calories*\\n${calBar}\\n`;\nif (days > 1) msg += `Total: *${totalCal} kcal* | Avg: *${Math.round(totalCal/days)} kcal/day* (${calPct}%)\\n`;\nelse msg += `${totalCal} / ${calTarget} kcal (${calPct}%)\\n`;\nmsg += `Protein: ${totalProtein}g | Carbs: ${totalCarbs}g | Fat: ${totalFat}g`;\n\nif (days === 1) {\n  const mealList = meals.map(r => `  \u2022 ${r.json.meal_type}: ${r.json.food_items} (${r.json.calories} kcal)`).join('\\n') || '  No meals logged yet';\n  msg += `\\n\\n\ud83e\udd57 *Meals (${meals.length})*\\n${mealList}`;\n} else {\n  msg += `\\n\\n\ud83e\udd57 *Meals logged: ${meals.length}* (avg ${(meals.length/days).toFixed(1)}/day)`;\n}\n\nif (totalSugar > 30 * days) msg += `\\n\\n\u26a0\ufe0f High sugar: ${totalSugar}g (limit: ${30 * days}g)`;\n\nreturn [{ json: { reply: msg, chat_id: chatId } }];"
       },
       "id": "build-summary",
       "name": "Build Daily Summary",
@@ -575,7 +579,7 @@
     {
       "parameters": {
         "chatId": "={{ $json.message.chat.id }}",
-        "text": "👋 *Mitra — Daily Tracker*\n\n*🍽️ Food*\n• Send a *photo* of your meal\n• `/food 2 rotis and dal` — log by text\n• `/food summary` — today's food \\+ water\n• `/food weekly` — last 7 days\n• `/food monthly` — last 30 days\n\n*💧 Water*\n• `/water` — log 1 glass \\(250ml\\)\n• `/water 2` — log 2 glasses \\(500ml\\)\n• `/water 500` — log 500ml direct\n• `/water summary` — today's water intake\n• `/water weekly` — last 7 days\n• `/water monthly` — last 30 days\n\n_Targets: 2000 kcal · 3000ml water_",
+        "text": "\ud83d\udc4b *Mitra \u2014 Your Daily Companion*\n\n*\ud83c\udf7d\ufe0f Food*\n\u2022 Send a *photo* of your meal\n\u2022 `/food 2 rotis and dal` \u2014 log by text\n\u2022 `/food summary` \u2014 today's food \\+ water\n\n*\ud83d\udca7 Water*\n\u2022 `/water` \u2014 log 1 glass \\(250ml\\)\n\u2022 `/water 2` \u2014 log 2 glasses\n\u2022 `/water summary` \u2014 today's water intake\n\n*\ud83d\udcc4 Resume*\n\u2022 `/resume [paste JD]` \u2014 generate ATS\\-optimised PDF resume\n\u2022 Or paste any JD text \\(200\\+ chars\\) directly\n\n_Targets: 2000 kcal \u00b7 3000ml water_",
         "additionalFields": {
           "parse_mode": "Markdown",
           "appendAttribution": false
@@ -672,7 +676,8 @@
           "mode": "name",
           "value": "Water"
         },
-        "options": {}
+        "options": {},
+        "authentication": "serviceAccount"
       },
       "id": "read-water-only",
       "name": "Read Water Only",
@@ -683,15 +688,15 @@
         80
       ],
       "credentials": {
-        "googleSheetsOAuth2Api": {
-          "id": "gsheets001",
-          "name": "Google Sheets"
+        "googleApi": {
+          "id": "fa9414e1-1db7-446e-94a2-2ffeb782e5d6",
+          "name": "Mitra Google SA"
         }
       }
     },
     {
       "parameters": {
-        "jsCode": "const today = new Date().toISOString().split('T')[0];\nconst text = ($('Telegram Trigger').first().json.message.text || '').toLowerCase();\n\nlet days = 1, periodLabel = 'Today';\nif (text.includes('month')) { days = 30; periodLabel = 'This Month (30 days)'; }\nelse if (text.includes('week')) { days = 7; periodLabel = 'This Week (7 days)'; }\n\nconst startDate = new Date();\nstartDate.setDate(startDate.getDate() - (days - 1));\nconst startDateStr = startDate.toISOString().split('T')[0];\nconst inRange = d => d >= startDateStr && d <= today;\n\nconst rows = $input.all().filter(r => inRange(r.json.date));\nconst target = 3000 * days;\nconst total = rows.reduce((s, r) => s + (parseFloat(r.json.ml) || 0), 0);\nconst pct = Math.round((total / target) * 100);\n\nconst filled = Math.min(Math.floor((total / target) * 10), 10);\nlet bar = ''; for (let i = 0; i < 10; i++) bar += i < filled ? '🟦' : '⬜';\n\nconst chatId = $('Telegram Trigger').first().json.message.chat.id;\nconst dateRange = days === 1\n  ? new Date().toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'short' })\n  : `${startDateStr} → ${today}`;\n\nlet msg = `💧 *Water Summary — ${periodLabel}*\\n_${dateRange}_\\n\\n${bar}\\n`;\n\nif (days > 1) {\n  msg += `Total: *${total}ml* | Avg: *${Math.round(total / days)}ml/day*\\n`;\n  msg += `Target: ${target}ml (${pct}%)`;\n} else {\n  msg += `${total}ml / ${target}ml (${pct}%)`;\n  const remaining = Math.max(0, target - total);\n  if (remaining > 0) msg += `\\n${remaining}ml more to reach your goal!`;\n  else msg += `\\n🎉 Daily water goal reached!`;\n}\n\nif (days === 1 && rows.length > 0) {\n  const logs = rows.map(r => `  • ${r.json.time}: ${r.json.ml}ml`).join('\\n');\n  msg += `\\n\\n🕐 *Logs (${rows.length})*\\n${logs}`;\n}\n\nreturn [{ json: { reply: msg, chat_id: chatId } }];"
+        "jsCode": "const today = new Date().toISOString().split('T')[0];\nconst text = ($('Telegram Trigger').first().json.message.text || '').toLowerCase();\n\nlet days = 1, periodLabel = 'Today';\nif (text.includes('month')) { days = 30; periodLabel = 'This Month (30 days)'; }\nelse if (text.includes('week')) { days = 7; periodLabel = 'This Week (7 days)'; }\n\nconst startDate = new Date();\nstartDate.setDate(startDate.getDate() - (days - 1));\nconst startDateStr = startDate.toISOString().split('T')[0];\nconst inRange = d => d >= startDateStr && d <= today;\n\nconst rows = $input.all().filter(r => inRange(r.json.date));\nconst target = 3000 * days;\nconst total = rows.reduce((s, r) => s + (parseFloat(r.json.ml) || 0), 0);\nconst pct = Math.round((total / target) * 100);\n\nconst filled = Math.min(Math.floor((total / target) * 10), 10);\nlet bar = ''; for (let i = 0; i < 10; i++) bar += i < filled ? '\ud83d\udfe6' : '\u2b1c';\n\nconst chatId = $('Telegram Trigger').first().json.message.chat.id;\nconst dateRange = days === 1\n  ? new Date().toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'short' })\n  : `${startDateStr} \u2192 ${today}`;\n\nlet msg = `\ud83d\udca7 *Water Summary \u2014 ${periodLabel}*\\n_${dateRange}_\\n\\n${bar}\\n`;\n\nif (days > 1) {\n  msg += `Total: *${total}ml* | Avg: *${Math.round(total / days)}ml/day*\\n`;\n  msg += `Target: ${target}ml (${pct}%)`;\n} else {\n  msg += `${total}ml / ${target}ml (${pct}%)`;\n  const remaining = Math.max(0, target - total);\n  if (remaining > 0) msg += `\\n${remaining}ml more to reach your goal!`;\n  else msg += `\\n\ud83c\udf89 Daily water goal reached!`;\n}\n\nif (days === 1 && rows.length > 0) {\n  const logs = rows.map(r => `  \u2022 ${r.json.time}: ${r.json.ml}ml`).join('\\n');\n  msg += `\\n\\n\ud83d\udd50 *Logs (${rows.length})*\\n${logs}`;\n}\n\nreturn [{ json: { reply: msg, chat_id: chatId } }];"
       },
       "id": "build-water-summary",
       "name": "Build Water Summary",
@@ -936,6 +941,289 @@
         440,
         600
       ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": false,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "r1",
+              "leftValue": "={{ $json.message.text || '' }}",
+              "rightValue": "/resume",
+              "operator": {
+                "type": "string",
+                "operation": "startsWith",
+                "singleValue": true
+              }
+            },
+            {
+              "id": "r2",
+              "leftValue": "={{ ($json.message.text || '').length }}",
+              "rightValue": 200,
+              "operator": {
+                "type": "number",
+                "operation": "gt",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "or"
+        },
+        "options": {}
+      },
+      "id": "resume-check",
+      "name": "Resume Check",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        440,
+        960
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const msg = $input.item.json.message || {};\nconst chatId = msg.chat?.id;\nconst text = (msg.text || '').trim();\n\nconst lower = text.toLowerCase();\n\nif (lower.startsWith('/resume')) {\n  const jd = text.replace(/^\\/resume\\s*/i, '').trim();\n  if (!jd) {\n    return [{ json: { type: 'prompt_jd', chatId, text } }];\n  }\n  return [{ json: { type: 'resume', chatId, jobDescription: jd } }];\n}\n\nif (text.length > 200 && !text.startsWith('/')) {\n  return [{ json: { type: 'resume', chatId, jobDescription: text } }];\n}\n\nreturn [];"
+      },
+      "id": "parse-resume",
+      "name": "Parse Resume",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        660,
+        1060
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": false,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "check-prompt-jd",
+              "leftValue": "={{ $json.type }}",
+              "rightValue": "prompt_jd",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "or"
+        },
+        "options": {}
+      },
+      "id": "resume-needs-jd",
+      "name": "Resume Needs JD?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        880,
+        1060
+      ]
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $json.chatId }}",
+        "text": "\ud83d\udccb Please send the job description after /resume:\n\n<code>/resume Senior Backend Engineer at Acme Corp. Looking for 5+ years Python, Kubernetes, ML background...</code>\n\nOr paste the full JD text directly (200+ chars, no command needed).",
+        "additionalFields": {
+          "parse_mode": "HTML",
+          "appendAttribution": false
+        }
+      },
+      "id": "resume-ask-jd",
+      "name": "Resume Ask JD",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        1100,
+        940
+      ],
+      "credentials": {
+        "telegramApi": {
+          "id": "61YafmlNQxmiGwcT",
+          "name": "Mitra Telegram Bot"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $json.chatId }}",
+        "text": "\u2699\ufe0f <b>Generating your resume...</b>\n\nThis takes ~30 seconds:\n\u2022 Analyzing job description\n\u2022 Optimizing with Claude AI\n\u2022 Compiling PDF with LaTeX\n\nStand by!",
+        "additionalFields": {
+          "parse_mode": "HTML",
+          "appendAttribution": false
+        }
+      },
+      "id": "resume-send-ack",
+      "name": "Resume Send Ack",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        1100,
+        1180
+      ],
+      "credentials": {
+        "telegramApi": {
+          "id": "61YafmlNQxmiGwcT",
+          "name": "Mitra Telegram Bot"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "assign-resume",
+              "name": "defaultResume",
+              "value": "Name: Vishal M\nEmail: vishal.maheshshivashankar@gmail.com\nRole: Senior Member Technical Team | Perfios Software Pvt Ltd | 4 Years\nLocation: Bengaluru, Karnataka, India\n\nSUMMARY:\nSenior Software Engineer with 4 years of deep expertise in backend systems, ML infrastructure, and LLM integration at Perfios. Specializes in scalable microservices (Python, Celery, Kubernetes), MLOps automation, and AI-powered document processing. Delivered measurable impact: 35-60% infrastructure cost reductions, 99.9% uptime on 30K+ daily requests, and deployment cycles cut from days to hours.\n\nEDUCATION:\n- BE in Computer Science\n- PUC in PCME\n- SSLC\n\nCERTIFICATIONS:\n- AWS Cloud Practitioner\n\nSKILLS:\nLanguages: Python\nQueuing/Messaging: Celery, Redis, Kafka\nCloud: GCP, AWS (ECS, S3, Lambda), Vertex AI\nOrchestration: Kubernetes, Docker\nData Engineering: Apache Airflow, Dagster\nML/AI: MLflow, LLM Prompt Engineering, LLM Executor\nSearch: Elasticsearch, OpenSearch, Logstash, Fluentbit\nFrontend: React 18\nDevOps: GitLab CI/CD, Prometheus, Grafana, ELK Stack\nDatabases: MongoDB, PostgreSQL, DynamoDB, Redis\n\nEXPERIENCE:\n\nSenior Member Technical Team | Perfios Software Pvt Ltd | Apr 2025 - Present\n- Led enterprise MLOps platform development automating end-to-end ML lifecycle; reduced model training time from weeks to days\n- Architected LLM Prompt Service with multi-backend storage (MongoDB, PostgreSQL, Redis, DynamoDB), versioning, and environment labeling\n- Built LLM Executor Service consolidating 15+ ML containers into unified system; cut infrastructure costs by 60%\n- Designed Elasticsearch-based deduplication system reducing duplicate transaction processing by 20%\n- Developed Search APIs serving 100K+ daily queries with sub-second response time\n\nSoftware Development Engineer | Perfios Software Pvt Ltd | Aug 2022 - Mar 2025\n- Architected ML Executor Service running 20+ models on Kubernetes; handled 30K+ daily requests at 99.9% uptime\n- Designed enterprise DataLake (Airflow + Dagster) managing 50TB+ structured data for analytics and ML training\n- Reduced duplicate processing by 40% via checksum-based deduplication; migrated AWS ECS to Kubernetes saving 35% in ops costs\n- Built TAT analysis, ML vs GT comparison, and document quality metrics tracking system\n- Created automated data curation pipelines producing high-quality ML training datasets\n\nSDE Intern | Perfios Software Solutions Pvt Ltd | Feb 2022 - Jun 2022\n- Trained ML models in Google Vertex AI for KYC document classification and field extraction\n- Built serverless deployment platform on AWS Lambda with auto-scaling; implemented GitLab CI/CD pipelines\n- Achieved 3x inference speedup through model quantization and batching\n\nKEY PROJECTS:\n1. ML Executor Service - Async inference (Celery, Redis, Kafka); 20+ models, 30K+ daily requests, 99.9% uptime, 35% cost reduction\n2. DataLake - Airflow + Dagster; 50TB+ data, 40% deduplication reduction, 10x faster metadata search\n3. Search & Deduplication - 100K+ daily documents, sub-second queries, $50K+ annual savings\n4. MLOps Platform - MLflow-powered; 50+ model versions tracked, training time cut from weeks to days\n5. LLM Prompt Store - Multi-backend (MongoDB, PostgreSQL, Redis, DynamoDB); React 18 UI; 90% latency reduction via Redis caching\n6. LLM Executor Service - Consolidated 15+ containers; 60% infra cost reduction; deployment: days to hours\n7. Translation Service - Google Cloud Translation + Redis caching; 70% API cost reduction\n\nPERSONAL PROJECTS:\n- ORBIT Finance Manager: Telegram bot + Gmail API + Gemini AI; 98% transaction accuracy; natural language finance queries\n- Mitra: Self-hosted n8n bot for daily health tracking (food/water/calories) + AI resume generation via Claude + LaTeX",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "resume-default-data",
+      "name": "Default Resume Data",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1320,
+        1180
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const jobDescription = $('Parse Resume').item.json.jobDescription;\nconst chatId = $('Parse Resume').item.json.chatId;\nconst resumeText = $json.defaultResume;\n\nconst systemPrompt = `You are an elite resume writer and ATS optimization specialist.\nYour job: produce a LaTeX resume that maximally matches the job description and passes ATS screening.\n\n## OPTIMIZATION STEPS\n1. Extract all required/preferred skills, tools, cloud services, and keywords from the JD\n2. Mirror those EXACT keywords in the resume (ATS keyword matching)\n3. Reorder experience bullets - most JD-relevant achievements come first\n4. Every bullet must have a quantified metric (%, $, x faster, # requests, # users)\n5. Use strong action verbs: Architected, Engineered, Spearheaded, Automated, Reduced, Scaled\n6. Remove irrelevant content; add context that reinforces JD requirements\n\n## LATEX RULES\n- Use ONLY these packages: geometry, hyperref, enumitem, titlesec, parskip, fontenc, inputenc, array, booktabs\n- DO NOT use: fontawesome, fontawesome5, moderncv, tikz\n- Clean single-column layout (ATS-friendly)\n- Font size: 10pt or 11pt, margins: 0.65in-0.75in\n- Section headers: bold with horizontal rule\n- Bullet points: tight spacing with enumitem\n- Hyperlinked email\n- Target: 1 page\n\n## OUTPUT FORMAT\nReturn ONLY valid compilable LaTeX. Start with documentclass, end with end{document}. No markdown, no fences.`;\n\nconst userPrompt = `Optimize and rewrite this resume for the job description below.\\n\\n=== JOB DESCRIPTION ===\\n${jobDescription}\\n\\n=== CANDIDATE RESUME ===\\n${resumeText}\\n\\nReturn ONLY LaTeX code.`;\n\nconst claudeBody = {\n  model: 'claude-sonnet-4-6',\n  max_tokens: 4096,\n  system: systemPrompt,\n  messages: [{ role: 'user', content: userPrompt }]\n};\n\nreturn [{ json: { chatId, jobDescription, claudeBody, startTime: Date.now() } }];"
+      },
+      "id": "resume-build-prompt",
+      "name": "Resume Build Prompt",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1540,
+        1180
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.anthropic.com/v1/messages",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "x-api-key",
+              "value": "={{ $env.ANTHROPIC_API_KEY }}"
+            },
+            {
+              "name": "anthropic-version",
+              "value": "2023-06-01"
+            },
+            {
+              "name": "content-type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ $json.claudeBody }}",
+        "options": {
+          "timeout": 120000
+        }
+      },
+      "id": "resume-claude-api",
+      "name": "Resume Claude AI",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1760,
+        1180
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const claudeResponse = $input.item.json;\nconst promptData = $('Resume Build Prompt').item.json;\n\nlet latexCode = '';\nif (claudeResponse.content && Array.isArray(claudeResponse.content)) {\n  for (const block of claudeResponse.content) {\n    if (block.type === 'text' && block.text) {\n      latexCode = block.text;\n      break;\n    }\n  }\n}\n\nif (!latexCode) {\n  throw new Error('Claude returned empty response: ' + JSON.stringify(claudeResponse).substring(0, 200));\n}\n\nlatexCode = latexCode\n  .replace(/^```(?:latex|tex|\\s*)?\\n?/i, '')\n  .replace(/\\n?```\\s*$/i, '')\n  .trim();\n\nif (!latexCode.includes('\\\\documentclass')) {\n  throw new Error('Invalid LaTeX from Claude: ' + latexCode.substring(0, 200));\n}\n\nif (!latexCode.includes('\\\\end{document}')) {\n  latexCode += '\\n\\\\end{document}';\n}\n\nconst model = claudeResponse.model || 'claude-sonnet-4-6';\nconst inputTokens = claudeResponse.usage?.input_tokens || 0;\nconst outputTokens = claudeResponse.usage?.output_tokens || 0;\nconst elapsed = Math.round((Date.now() - (promptData.startTime || Date.now())) / 1000);\n\nreturn [{ json: { latexCode, chatId: promptData.chatId, model, inputTokens, outputTokens, elapsedSec: elapsed, lineCount: latexCode.split('\\n').length } }];"
+      },
+      "id": "resume-extract-latex",
+      "name": "Resume Extract LaTeX",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1980,
+        1180
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.LATEX_COMPILER_URL }}/compile",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\"source\": {{ JSON.stringify($json.latexCode) }}, \"filename\": \"resume\"}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "file"
+            }
+          },
+          "timeout": 90000
+        }
+      },
+      "id": "resume-compile-pdf",
+      "name": "Resume Compile PDF",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2200,
+        1180
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "message",
+        "operation": "sendDocument",
+        "chatId": "={{ $('Resume Extract LaTeX').item.json.chatId }}",
+        "binaryData": true,
+        "binaryPropertyName": "data",
+        "additionalFields": {
+          "caption": "={{ '\u2705 Resume ready! (' + $('Resume Extract LaTeX').item.json.elapsedSec + 's \u00b7 ' + $('Resume Extract LaTeX').item.json.inputTokens + ' in / ' + $('Resume Extract LaTeX').item.json.outputTokens + ' out tokens)' }}",
+          "appendAttribution": false
+        }
+      },
+      "id": "resume-send-pdf",
+      "name": "Resume Send PDF",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        2420,
+        1180
+      ],
+      "credentials": {
+        "telegramApi": {
+          "id": "61YafmlNQxmiGwcT",
+          "name": "Mitra Telegram Bot"
+        }
+      }
     }
   ],
   "connections": {
@@ -1183,7 +1471,13 @@
             "index": 0
           }
         ],
-        []
+        [
+          {
+            "node": "Resume Check",
+            "type": "main",
+            "index": 0
+          }
+        ]
       ]
     },
     "Photo Check": {
@@ -1221,6 +1515,113 @@
           }
         ]
       ]
+    },
+    "Resume Check": {
+      "main": [
+        [
+          {
+            "node": "Parse Resume",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "Parse Resume": {
+      "main": [
+        [
+          {
+            "node": "Resume Needs JD?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Resume Needs JD?": {
+      "main": [
+        [
+          {
+            "node": "Resume Ask JD",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Resume Send Ack",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Resume Send Ack": {
+      "main": [
+        [
+          {
+            "node": "Default Resume Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Default Resume Data": {
+      "main": [
+        [
+          {
+            "node": "Resume Build Prompt",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Resume Build Prompt": {
+      "main": [
+        [
+          {
+            "node": "Resume Claude AI",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Resume Claude AI": {
+      "main": [
+        [
+          {
+            "node": "Resume Extract LaTeX",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Resume Extract LaTeX": {
+      "main": [
+        [
+          {
+            "node": "Resume Compile PDF",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Resume Compile PDF": {
+      "main": [
+        [
+          {
+            "node": "Resume Send PDF",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     }
   },
   "settings": {
@@ -1232,5 +1633,6 @@
       "name": "mitra"
     }
   ],
-  "active": false
+  "active": false,
+  "id": "ZtcJqCpmHPCYNd1U"
 }
