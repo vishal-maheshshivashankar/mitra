@@ -1,0 +1,441 @@
+{
+  "name": "Mitra - Weight Tracker",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "telegram-trigger",
+      "name": "Telegram Trigger",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1,
+      "position": [
+        220,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const msg = $input.first().json.message;\nconst text = (msg.text || '').trim();\nconst chatId = msg.chat.id;\n\n// Route: /weight summary \u2192 summary, /weight <number> \u2192 log\nconst isSummary = /^\\/weight\\s+summary/i.test(text);\nconst isLog = /^\\/weight\\s+[\\d.]+/i.test(text);\n\nreturn [{ json: { text, chatId, isSummary, isLog } }];"
+      },
+      "id": "route-weight",
+      "name": "Route Weight Command",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        440,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": false,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ $json.isSummary }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "check-summary",
+      "name": "Is Summary?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        660,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const msg = $('Telegram Trigger').first().json.message;\nconst text = (msg.text || '').trim();\nconst chatId = msg.chat.id;\n\n// Extract all numbers from the command: /weight <weight_kg> [height_cm]\nconst nums = [...text.matchAll(/[\\d.]+/g)].map(m => parseFloat(m[0]));\nif (nums.length === 0) {\n  return [{ json: { error: true, chatId, reply: '\u274c Please send your weight as a number.\\nExample: `/weight 75.5` or `/weight 75.5 178`' } }];\n}\n\nconst weight = nums[0];\nif (weight < 20 || weight > 300) {\n  return [{ json: { error: true, chatId, reply: '\u274c Weight must be between 20 and 300 kg.' } }];\n}\n\n// Optional height (second number in message, must be 50\u2013250 cm)\nconst heightRaw = nums[1];\nconst height_cm = (heightRaw && heightRaw >= 50 && heightRaw <= 250) ? heightRaw : null;\n\nconst now = new Date();\nreturn [{ json: {\n  error: false,\n  chatId,\n  weightId: 'w_' + now.getTime(),\n  date: now.toISOString().split('T')[0],\n  time: now.toTimeString().split(' ')[0],\n  weight_kg: weight,\n  height_cm\n} }];\n"
+      },
+      "id": "parse-weight",
+      "name": "Parse Weight",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        880,
+        420
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": false,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ $json.error }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "check-parse-error",
+      "name": "Parse Error?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1100,
+        420
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{ $env.SPREADSHEET_ID }}"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "Weight"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "weight_id": "={{ $json.weightId }}",
+            "date": "={{ $json.date }}",
+            "time": "={{ $json.time }}",
+            "weight_kg": "={{ $json.weight_kg }}"
+          },
+          "schema": [
+            {
+              "id": "weight_id",
+              "displayName": "weight_id",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "date",
+              "displayName": "date",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "time",
+              "displayName": "time",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "weight_kg",
+              "displayName": "weight_kg",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "number",
+              "removed": false
+            }
+          ]
+        },
+        "options": {},
+        "authentication": "serviceAccount"
+      },
+      "id": "log-weight-sheet",
+      "name": "Log Weight to Sheet",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        1320,
+        540
+      ],
+      "credentials": {
+        "googleApi": {
+          "id": "fa9414e1-1db7-446e-94a2-2ffeb782e5d6",
+          "name": "Mitra Google SA"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $('Parse Weight').first().json.chatId }}",
+        "text": "={{ $('Build Weight Reply').first().json.reply }}",
+        "additionalFields": {
+          "parse_mode": "HTML",
+          "appendAttribution": false
+        }
+      },
+      "id": "send-weight-logged",
+      "name": "Send Weight Logged",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        1760,
+        540
+      ],
+      "credentials": {
+        "telegramApi": {
+          "id": "61YafmlNQxmiGwcT",
+          "name": "Mitra Telegram Bot"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const w = $('Parse Weight').first().json;\nconst weight = w.weight_kg;\n\nlet bmiLine = '';\nif (w.height_cm) {\n  const h = w.height_cm / 100;\n  const bmi = (weight / (h * h)).toFixed(1);\n  let label = bmi < 18.5 ? 'Underweight' : bmi < 25 ? 'Normal' : bmi < 30 ? 'Overweight' : 'Obese';\n  bmiLine = `\\n\\n\ud83d\udca1 BMI: <b>${bmi}</b> (${label}) \u00b7 based on ${w.height_cm} cm`;\n}\n\nconst reply = `\u2696\ufe0f <b>Weight Logged!</b>\\n\\n\ud83d\udcc5 ${w.date} at ${w.time.substring(0,5)}\\n\ud83c\udfcb\ufe0f <b>${weight} kg</b>${bmiLine}\\n\\n\ud83d\udcca /weight summary week  \u00b7  /weight summary month`;\n\nreturn [{ json: { reply } }];\n"
+      },
+      "id": "build-weight-reply",
+      "name": "Build Weight Reply",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1540,
+        540
+      ]
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $('Route Weight Command').first().json.chatId }}",
+        "text": "={{ $json.reply }}",
+        "additionalFields": {
+          "parse_mode": "Markdown",
+          "appendAttribution": false
+        }
+      },
+      "id": "send-parse-error",
+      "name": "Send Parse Error",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        1320,
+        360
+      ],
+      "credentials": {
+        "telegramApi": {
+          "id": "61YafmlNQxmiGwcT",
+          "name": "Mitra Telegram Bot"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "read",
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{ $env.SPREADSHEET_ID }}"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "Weight"
+        },
+        "options": {},
+        "authentication": "serviceAccount"
+      },
+      "id": "read-weight-sheet",
+      "name": "Read Weight Sheet",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        880,
+        180
+      ],
+      "credentials": {
+        "googleApi": {
+          "id": "fa9414e1-1db7-446e-94a2-2ffeb782e5d6",
+          "name": "Mitra Google SA"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const text = $('Telegram Trigger').first().json.message.text || '';\nconst chatId = $('Telegram Trigger').first().json.message.chat.id;\n\nconst isMonthly = /month/i.test(text);\nconst days = isMonthly ? 30 : 7;\nconst periodLabel = isMonthly ? 'Monthly (30 days)' : 'Weekly (7 days)';\n\nconst today = new Date().toISOString().split('T')[0];\nconst startDate = new Date();\nstartDate.setDate(startDate.getDate() - (days - 1));\nconst startDateStr = startDate.toISOString().split('T')[0];\n\nconst allRows = $input.all();\nconst entries = allRows\n  .filter(r => r.json.date >= startDateStr && r.json.date <= today && r.json.weight_kg)\n  .map(r => ({ date: r.json.date, weight: parseFloat(r.json.weight_kg) }))\n  .sort((a, b) => a.date.localeCompare(b.date));\n\nif (entries.length === 0) {\n  return [{ json: { chatId, reply: `\u2696\ufe0f *${periodLabel} Weight Summary*\\n\\nNo weight entries found for this period.\\n\\nLog your weight with: \\`/weight 75.5\\`` } }];\n}\n\nconst weights = entries.map(e => e.weight);\nconst minW = Math.min(...weights);\nconst maxW = Math.max(...weights);\nconst avgW = (weights.reduce((a, b) => a + b, 0) / weights.length).toFixed(1);\nconst firstW = weights[0];\nconst lastW = weights[weights.length - 1];\nconst change = (lastW - firstW).toFixed(1);\nconst changeSign = change > 0 ? '+' : '';\nconst changeEmoji = change < 0 ? '\ud83d\udcc9' : change > 0 ? '\ud83d\udcc8' : '\u27a1\ufe0f';\n\n// Trend line (simple: last 3 vs first 3 avg)\nlet trend = '';\nif (entries.length >= 4) {\n  const firstHalf = weights.slice(0, Math.ceil(weights.length / 2));\n  const lastHalf = weights.slice(Math.floor(weights.length / 2));\n  const firstAvg = firstHalf.reduce((a, b) => a + b, 0) / firstHalf.length;\n  const lastAvg = lastHalf.reduce((a, b) => a + b, 0) / lastHalf.length;\n  const trendDiff = (lastAvg - firstAvg).toFixed(1);\n  trend = `\\n\ud83d\udcca Trend: ${trendDiff > 0 ? '+' : ''}${trendDiff} kg (${trendDiff < 0 ? 'losing' : trendDiff > 0 ? 'gaining' : 'stable'})`;\n}\n\n// Recent entries list (last 5)\nconst recentList = entries.slice(-5).map(e => `  \u2022 ${e.date}: *${e.weight} kg*`).join('\\n');\n\nconst dateRange = `${startDateStr} \u2192 ${today}`;\nlet msg = `\u2696\ufe0f *${periodLabel} Weight Summary*\\n_${dateRange}_\\n\\n`;\nmsg += `${changeEmoji} Change: *${changeSign}${change} kg* (${firstW} \u2192 ${lastW} kg)\\n`;\nmsg += `\ud83d\udccf Range: ${minW} \u2013 ${maxW} kg | Avg: *${avgW} kg*`;\nmsg += trend;\nmsg += `\\n\\n\ud83d\udccb *Recent entries (${entries.length} total)*\\n${recentList}`;\n\nreturn [{ json: { chatId, reply: msg } }];"
+      },
+      "id": "build-summary",
+      "name": "Build Weight Summary",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1100,
+        180
+      ]
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $json.chatId }}",
+        "text": "={{ $json.reply }}",
+        "additionalFields": {
+          "parse_mode": "Markdown",
+          "appendAttribution": false
+        }
+      },
+      "id": "send-summary",
+      "name": "Send Weight Summary",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        1320,
+        180
+      ],
+      "credentials": {
+        "telegramApi": {
+          "id": "61YafmlNQxmiGwcT",
+          "name": "Mitra Telegram Bot"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Telegram Trigger": {
+      "main": [
+        [
+          {
+            "node": "Route Weight Command",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Route Weight Command": {
+      "main": [
+        [
+          {
+            "node": "Is Summary?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is Summary?": {
+      "main": [
+        [
+          {
+            "node": "Read Weight Sheet",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Parse Weight",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Weight Sheet": {
+      "main": [
+        [
+          {
+            "node": "Build Weight Summary",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Weight Summary": {
+      "main": [
+        [
+          {
+            "node": "Send Weight Summary",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Weight": {
+      "main": [
+        [
+          {
+            "node": "Parse Error?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Error?": {
+      "main": [
+        [
+          {
+            "node": "Send Parse Error",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Log Weight to Sheet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Log Weight to Sheet": {
+      "main": [
+        [
+          {
+            "node": "Build Weight Reply",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Weight Reply": {
+      "main": [
+        [
+          {
+            "node": "Send Weight Logged",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "callerPolicy": "any"
+  },
+  "tags": [
+    {
+      "name": "mitra"
+    }
+  ],
+  "active": false,
+  "id": "mitra-weight-tracker-001"
+}

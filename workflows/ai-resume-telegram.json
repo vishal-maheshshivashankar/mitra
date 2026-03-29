@@ -2,31 +2,19 @@
   "name": "AI Resume Builder - Telegram",
   "nodes": [
     {
-      "parameters": {
-        "updates": [
-          "message"
-        ],
-        "additionalFields": {}
-      },
+      "parameters": {},
       "id": "node-tg-trigger",
       "name": "Telegram Trigger",
-      "type": "n8n-nodes-base.telegramTrigger",
-      "typeVersion": 1.1,
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1,
       "position": [
         0,
         300
-      ],
-      "webhookId": "resume-builder-tg-v1",
-      "credentials": {
-        "telegramApi": {
-          "id": "61YafmlNQxmiGwcT",
-          "name": "Mitra Telegram Bot"
-        }
-      }
+      ]
     },
     {
       "parameters": {
-        "jsCode": "const msg = $input.item.json.message || {};\nconst chatId = msg.chat?.id;\nconst text = (msg.text || '').trim();\n\nif (!chatId || !text) {\n  // Not a text message (photo, sticker, etc.) \u2014 let other workflows handle it\n  return [];\n}\n\nconst lower = text.toLowerCase();\n\n// /start or /help \u2192 show welcome\nif (lower === '/start' || lower === '/help' || lower.startsWith('/start ') || lower.startsWith('/help ')) {\n  return [{ json: { type: 'welcome', chatId, text } }];\n}\n\n// /resume [job description] \u2192 generate resume\nif (lower.startsWith('/resume')) {\n  const jd = text.replace(/^\\/resume\\s*/i, '').trim();\n  if (!jd) {\n    // /resume with no content \u2192 prompt user\n    return [{ json: { type: 'prompt_jd', chatId, text } }];\n  }\n  return [{ json: { type: 'resume', chatId, jobDescription: jd } }];\n}\n\n// Plain long text (> 200 chars) not starting with / \u2192 treat as job description\nif (text.length > 200 && !text.startsWith('/')) {\n  return [{ json: { type: 'resume', chatId, jobDescription: text } }];\n}\n\n// Unknown short text or other commands \u2192 ignore (let Mitra handle water, etc.)\nreturn [];"
+        "jsCode": "const msg = $input.first().json.message || {};\nconst chatId = msg.chat?.id;\nconst text = (msg.text || '').trim();\n\nif (!chatId || !text) {\n  // Not a text message (photo, sticker, etc.) \u2014 handled by other workflows\n  return [];\n}\n\nconst lower = text.toLowerCase();\n\n// These commands belong to other workflows \u2014 ignore them here\nif (lower.startsWith('/help') || lower.startsWith('/start') ||\n    lower.startsWith('/water') || lower.startsWith('/food') ||\n    lower.startsWith('/weight')) {\n  return [];\n}\n\n// /resume [job description] \u2192 generate resume\nif (lower.startsWith('/resume')) {\n  const jd = text.replace(/^\\/resume\\s*/i, '').trim();\n  if (!jd) {\n    return [{ json: { type: 'prompt_jd', chatId, text } }];\n  }\n  return [{ json: { type: 'resume', chatId, jobDescription: jd } }];\n}\n\n// Plain long text (> 200 chars) not starting with / \u2192 treat as job description\nif (text.length > 200 && !text.startsWith('/')) {\n  return [{ json: { type: 'resume', chatId, jobDescription: text } }];\n}\n\n// Everything else \u2192 ignore\nreturn [];"
       },
       "id": "node-parse-msg",
       "name": "Parse Message",
@@ -198,7 +186,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const jobDescription = $('Parse Message').item.json.jobDescription;\nconst chatId = $('Parse Message').item.json.chatId;\nconst resumeText = $json.defaultResume;\n\nconst systemPrompt = `You are an elite resume writer and ATS optimization specialist.\nYour job: produce a LaTeX resume that maximally matches the job description and passes ATS screening.\n\n## OPTIMIZATION STEPS\n1. Extract all required/preferred skills, tools, cloud services, and keywords from the JD\n2. Mirror those EXACT keywords in the resume (ATS keyword matching)\n3. Reorder experience bullets - most JD-relevant achievements come first\n4. Every bullet must have a quantified metric (%, $, x faster, # requests, # users)\n5. Use strong action verbs: Architected, Engineered, Spearheaded, Automated, Reduced, Scaled\n6. Remove irrelevant content; add context that reinforces JD requirements\n\n## LATEX RULES\n- Use ONLY these packages: geometry, hyperref, enumitem, titlesec, parskip, fontenc, inputenc, array, booktabs\n- DO NOT use: fontawesome, fontawesome5, moderncv, tikz\n- Clean single-column layout (ATS-friendly)\n- Font size: 10pt or 11pt, margins: 0.65in-0.75in\n- Section headers: bold with horizontal rule\n- Bullet points: tight spacing with enumitem\n- Hyperlinked email\n- Target: 1 page\n\n## OUTPUT FORMAT\nReturn ONLY valid compilable LaTeX. Start with documentclass, end with end{document}. No markdown, no fences.`;\n\nconst userPrompt = `Optimize and rewrite this resume for the job description below.\n\n=== JOB DESCRIPTION ===\n${jobDescription}\n\n=== CANDIDATE RESUME ===\n${resumeText}\n\nReturn ONLY LaTeX code.`;\n\n// Build the full Claude API body here to avoid JSON injection in HTTP node\nconst claudeBody = {\n  model: 'claude-sonnet-4-6',\n  max_tokens: 4096,\n  system: systemPrompt,\n  messages: [\n    { role: 'user', content: userPrompt }\n  ]\n};\n\nreturn [{\n  json: {\n    chatId,\n    jobDescription,\n    claudeBody,\n    startTime: Date.now()\n  }\n}];"
+        "jsCode": "const jobDescription = $('Parse Message').first().json.jobDescription;\nconst chatId = $('Parse Message').first().json.chatId;\nconst resumeText = $json.defaultResume;\n\nconst systemPrompt = `You are an elite resume writer and ATS optimization specialist.\nYour job: produce a LaTeX resume that maximally matches the job description and passes ATS screening.\n\n## OPTIMIZATION STEPS\n1. Extract all required/preferred skills, tools, cloud services, and keywords from the JD\n2. Mirror those EXACT keywords in the resume (ATS keyword matching)\n3. Reorder experience bullets - most JD-relevant achievements come first\n4. Every bullet must have a quantified metric (%, $, x faster, # requests, # users)\n5. Use strong action verbs: Architected, Engineered, Spearheaded, Automated, Reduced, Scaled\n6. Remove irrelevant content; add context that reinforces JD requirements\n\n## LATEX RULES\n- Use ONLY these packages: geometry, hyperref, enumitem, titlesec, parskip, fontenc, inputenc, array, booktabs\n- DO NOT use: fontawesome, fontawesome5, moderncv, tikz\n- Clean single-column layout (ATS-friendly)\n- Font size: 10pt or 11pt, margins: 0.65in-0.75in\n- Section headers: bold with horizontal rule\n- Bullet points: tight spacing with enumitem\n- Hyperlinked email\n- Target: 1 page\n\n## OUTPUT FORMAT\nReturn ONLY valid compilable LaTeX. Start with documentclass, end with end{document}. No markdown, no fences.`;\n\nconst userPrompt = `Optimize and rewrite this resume for the job description below.\n\n=== JOB DESCRIPTION ===\n${jobDescription}\n\n=== CANDIDATE RESUME ===\n${resumeText}\n\nReturn ONLY LaTeX code.`;\n\n// Build the full Claude API body here to avoid JSON injection in HTTP node\nconst claudeBody = {\n  model: 'claude-sonnet-4-6',\n  max_tokens: 4096,\n  system: systemPrompt,\n  messages: [\n    { role: 'user', content: userPrompt }\n  ]\n};\n\nreturn [{\n  json: {\n    chatId,\n    jobDescription,\n    claudeBody,\n    startTime: Date.now()\n  }\n}];"
       },
       "id": "node-build-prompt",
       "name": "Build Claude Prompt",
@@ -248,7 +236,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const claudeResponse = $input.item.json;\nconst promptData = $('Build Claude Prompt').item.json;\n\nlet latexCode = '';\nif (claudeResponse.content && Array.isArray(claudeResponse.content)) {\n  for (const block of claudeResponse.content) {\n    if (block.type === 'text' && block.text) {\n      latexCode = block.text;\n      break;\n    }\n  }\n}\n\nif (!latexCode) {\n  throw new Error('Claude returned empty response: ' + JSON.stringify(claudeResponse).substring(0, 200));\n}\n\n// Strip markdown fences if present\nlatexCode = latexCode\n  .replace(/^```(?:latex|tex|\\s*)?\\n?/i, '')\n  .replace(/\\n?```\\s*$/i, '')\n  .trim();\n\nif (!latexCode.includes('\\\\documentclass')) {\n  throw new Error('Invalid LaTeX from Claude: ' + latexCode.substring(0, 200));\n}\n\nif (!latexCode.includes('\\\\end{document}')) {\n  latexCode += '\\n\\\\end{document}';\n}\n\nconst model = claudeResponse.model || 'claude-opus-4-6';\nconst inputTokens = claudeResponse.usage?.input_tokens || 0;\nconst outputTokens = claudeResponse.usage?.output_tokens || 0;\nconst elapsed = Math.round((Date.now() - (promptData.startTime || Date.now())) / 1000);\n\nreturn [{\n  json: {\n    latexCode,\n    chatId: promptData.chatId,\n    model,\n    inputTokens,\n    outputTokens,\n    elapsedSec: elapsed,\n    lineCount: latexCode.split('\\n').length\n  }\n}];"
+        "jsCode": "const claudeResponse = $input.first().json;\nconst promptData = $('Build Claude Prompt').first().json;\n\nlet latexCode = '';\nif (claudeResponse.content && Array.isArray(claudeResponse.content)) {\n  for (const block of claudeResponse.content) {\n    if (block.type === 'text' && block.text) {\n      latexCode = block.text;\n      break;\n    }\n  }\n}\n\nif (!latexCode) {\n  throw new Error('Claude returned empty response: ' + JSON.stringify(claudeResponse).substring(0, 200));\n}\n\n// Strip markdown fences if present\nlatexCode = latexCode\n  .replace(/^```(?:latex|tex|\\s*)?\\n?/i, '')\n  .replace(/\\n?```\\s*$/i, '')\n  .trim();\n\nif (!latexCode.includes('\\\\documentclass')) {\n  throw new Error('Invalid LaTeX from Claude: ' + latexCode.substring(0, 200));\n}\n\nif (!latexCode.includes('\\\\end{document}')) {\n  latexCode += '\\n\\\\end{document}';\n}\n\nconst model = claudeResponse.model || 'claude-opus-4-6';\nconst inputTokens = claudeResponse.usage?.input_tokens || 0;\nconst outputTokens = claudeResponse.usage?.output_tokens || 0;\nconst elapsed = Math.round((Date.now() - (promptData.startTime || Date.now())) / 1000);\n\nreturn [{\n  json: {\n    latexCode,\n    chatId: promptData.chatId,\n    model,\n    inputTokens,\n    outputTokens,\n    elapsedSec: elapsed,\n    lineCount: latexCode.split('\\n').length\n  }\n}];"
       },
       "id": "node-extract-latex",
       "name": "Extract LaTeX",
@@ -297,11 +285,11 @@
       "parameters": {
         "resource": "message",
         "operation": "sendDocument",
-        "chatId": "={{ $('Extract LaTeX').item.json.chatId }}",
+        "chatId": "={{ $('Extract LaTeX').first().json.chatId }}",
         "binaryData": true,
         "binaryPropertyName": "data",
         "additionalFields": {
-          "caption": "=\u2705 <b>Resume ready!</b>\n\n\ud83d\udcca <b>Stats:</b>\n\u2022 Model: {{ $('Extract LaTeX').item.json.model }}\n\u2022 Tokens: {{ $('Extract LaTeX').item.json.inputTokens }} in / {{ $('Extract LaTeX').item.json.outputTokens }} out\n\u2022 LaTeX: {{ $('Extract LaTeX').item.json.lineCount }} lines\n\u2022 Total time: {{ $('Extract LaTeX').item.json.elapsedSec }}s\n\n\ud83d\udca1 Open the PDF \u2014 it's ATS-optimized for your job description.",
+          "caption": "=\u2705 <b>Resume ready!</b>\n\n\ud83d\udcca <b>Stats:</b>\n\u2022 Model: {{ $('Extract LaTeX').first().json.model }}\n\u2022 Tokens: {{ $('Extract LaTeX').first().json.inputTokens }} in / {{ $('Extract LaTeX').first().json.outputTokens }} out\n\u2022 LaTeX: {{ $('Extract LaTeX').first().json.lineCount }} lines\n\u2022 Total time: {{ $('Extract LaTeX').first().json.elapsedSec }}s\n\n\ud83d\udca1 Open the PDF \u2014 it's ATS-optimized for your job description.",
           "parse_mode": "HTML"
         }
       },
@@ -451,7 +439,7 @@
   "settings": {
     "executionOrder": "v1",
     "saveManualExecutions": true,
-    "callerPolicy": "workflowsFromSameOwner"
+    "callerPolicy": "any"
   },
   "id": "ai-resume-telegram-001",
   "meta": {

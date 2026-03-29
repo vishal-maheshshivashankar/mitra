@@ -102,7 +102,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const uploadResp = $input.first().json;\nconst fileUri = uploadResp?.file?.uri;\nconst mimeType = uploadResp?.file?.mimeType || 'image/jpeg';\n\nif (!fileUri) {\n  throw new Error('Gemini Files upload failed. Response: ' + JSON.stringify(uploadResp).substring(0, 500));\n}\n\nconst caption = $('Telegram Trigger').first().json.message.caption || '';\nconst userHint = caption ? '\\n\\nUser note: \"' + caption + '\"' : '';\n\nconst prompt = 'Analyze this food image and return ONLY valid JSON, no markdown, no explanation.' + userHint + '\\n\\nReturn this exact structure:\\n{\\n  \"meal_type\": \"lunch\",\\n  \"items\": [{\"name\": \"Dal Rice\", \"portion\": \"1 bowl\", \"calories\": 350, \"protein\": 12, \"carbs\": 55, \"fat\": 8, \"sugar\": 3, \"fiber\": 6}],\\n  \"totals\": {\"calories\": 350, \"protein\": 12, \"carbs\": 55, \"fat\": 8, \"sugar\": 3, \"fiber\": 6},\\n  \"health_rating\": 4,\\n  \"notes\": \"Brief comment\"\\n}';\n\nconst geminiBody = {\n  contents: [{\n    parts: [\n      { fileData: { fileUri, mimeType } },\n      { text: prompt }\n    ]\n  }],\n  generationConfig: { temperature: 0.3, maxOutputTokens: 8192 }\n};\n\nreturn [{ json: { geminiBody, fileUri } }];"
+        "jsCode": "const uploadResp = $input.first().json;\nconst fileUri = uploadResp?.file?.uri;\nconst mimeType = uploadResp?.file?.mimeType || 'image/jpeg';\n\nif (!fileUri) {\n  throw new Error('Gemini Files upload failed. Response: ' + JSON.stringify(uploadResp).substring(0, 500));\n}\n\nconst caption = $('Telegram Trigger').first().json.message.caption || '';\nconst userHint = caption ? '\\n\\nUser note: \"' + caption + '\"' : '';\n\nconst prompt = 'Analyze this food or drink image and return ONLY valid JSON, no markdown, no explanation.' + userHint + '\\n\\nFor meal_type use EXACTLY one of these values based on content and time:\\n- \"morning_fuel\" \u2014 breakfast/morning meal (6am-11am)\\n- \"midday_fuel\" \u2014 lunch/midday meal (11am-3pm)\\n- \"evening_fuel\" \u2014 dinner/evening meal (6pm-10pm)\\n- \"evening_snack\" \u2014 afternoon/evening snack, fruits (3pm-6pm)\\n- \"beverage\" \u2014 drinks only: coffee, tea, whey protein shake, fruit juice, energy drink, smoothie\\n\\nReturn this exact structure:\\n{\\n  \"meal_type\": \"midday_fuel\",\\n  \"items\": [{\"name\": \"Dal Rice\", \"portion\": \"1 bowl\", \"calories\": 350, \"protein\": 12, \"carbs\": 55, \"fat\": 8, \"sugar\": 3, \"fiber\": 6}],\\n  \"totals\": {\"calories\": 350, \"protein\": 12, \"carbs\": 55, \"fat\": 8, \"sugar\": 3, \"fiber\": 6},\\n  \"health_rating\": 4,\\n  \"notes\": \"Brief comment\"\\n}';\n\nconst geminiBody = {\n  contents: [{\n    parts: [\n      { fileData: { fileUri, mimeType } },\n      { text: prompt }\n    ]\n  }],\n  generationConfig: { temperature: 0.3, maxOutputTokens: 8192 }\n};\n\nreturn [{ json: { geminiBody, fileUri } }];"
       },
       "id": "encode-photo",
       "name": "Encode Photo",
@@ -528,7 +528,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const today = new Date().toISOString().split('T')[0];\nconst text = ($('Telegram Trigger').first().json.message.text || '').toLowerCase();\n\nlet days = 1, periodLabel = 'Today';\nif (text.includes('month')) { days = 30; periodLabel = 'This Month (30 days)'; }\nelse if (text.includes('week')) { days = 7; periodLabel = 'This Week (7 days)'; }\n\nconst startDate = new Date();\nstartDate.setDate(startDate.getDate() - (days - 1));\nconst startDateStr = startDate.toISOString().split('T')[0];\nconst inRange = date => date >= startDateStr && date <= today;\n\nconst meals = $input.all().filter(r => inRange(r.json.date));\nconst calTarget = 2000 * days;\nconst totalCal = meals.reduce((s, r) => s + (parseFloat(r.json.calories) || 0), 0);\nconst totalProtein = meals.reduce((s, r) => s + (parseFloat(r.json.protein_g) || 0), 0);\nconst totalCarbs = meals.reduce((s, r) => s + (parseFloat(r.json.carbs_g) || 0), 0);\nconst totalFat = meals.reduce((s, r) => s + (parseFloat(r.json.fat_g) || 0), 0);\nconst totalSugar = meals.reduce((s, r) => s + (parseFloat(r.json.sugar_g) || 0), 0);\n\nconst calPct = Math.round((totalCal / calTarget) * 100);\nconst calBars = Math.min(Math.round((totalCal / calTarget) * 10), 10);\nlet calBar = ''; for (let i = 0; i < 10; i++) calBar += i < calBars ? '\ud83d\udfe9' : '\u2b1c';\n\nconst chatId = $('Telegram Trigger').first().json.message.chat.id;\nconst dateRange = days === 1\n  ? new Date().toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'short' })\n  : `${startDateStr} \u2192 ${today}`;\n\nlet msg = `\ud83d\udcca *${periodLabel}*\\n_${dateRange}_\\n\\n`;\nmsg += `\ud83c\udf7d\ufe0f *Calories*\\n${calBar}\\n`;\nif (days > 1) msg += `Total: *${totalCal} kcal* | Avg: *${Math.round(totalCal/days)} kcal/day* (${calPct}%)\\n`;\nelse msg += `${totalCal} / ${calTarget} kcal (${calPct}%)\\n`;\nmsg += `Protein: ${totalProtein}g | Carbs: ${totalCarbs}g | Fat: ${totalFat}g`;\n\nif (days === 1) {\n  const mealList = meals.map(r => `  \u2022 ${r.json.meal_type}: ${r.json.food_items} (${r.json.calories} kcal)`).join('\\n') || '  No meals logged yet';\n  msg += `\\n\\n\ud83e\udd57 *Meals (${meals.length})*\\n${mealList}`;\n} else {\n  msg += `\\n\\n\ud83e\udd57 *Meals logged: ${meals.length}* (avg ${(meals.length/days).toFixed(1)}/day)`;\n}\n\nif (totalSugar > 30 * days) msg += `\\n\\n\u26a0\ufe0f High sugar: ${totalSugar}g (limit: ${30 * days}g)`;\n\nreturn [{ json: { reply: msg, chat_id: chatId } }];"
+        "jsCode": "const today = new Date().toISOString().split('T')[0];\nconst text = ($('Telegram Trigger').first().json.message.text || '').toLowerCase();\n\nlet days = 1, periodLabel = 'Today';\nif (text.includes('month')) { days = 30; periodLabel = 'This Month (30 days)'; }\nelse if (text.includes('week')) { days = 7; periodLabel = 'This Week (7 days)'; }\n\nconst startDate = new Date();\nstartDate.setDate(startDate.getDate() - (days - 1));\nconst startDateStr = startDate.toISOString().split('T')[0];\nconst inRange = date => date >= startDateStr && date <= today;\n\nconst meals = $input.all().filter(r => inRange(r.json.date));\nconst calTarget = 2000 * days;\nconst totalCal = meals.reduce((s, r) => s + (parseFloat(r.json.calories) || 0), 0);\nconst totalProtein = meals.reduce((s, r) => s + (parseFloat(r.json.protein_g) || 0), 0);\nconst totalCarbs = meals.reduce((s, r) => s + (parseFloat(r.json.carbs_g) || 0), 0);\nconst totalFat = meals.reduce((s, r) => s + (parseFloat(r.json.fat_g) || 0), 0);\nconst totalSugar = meals.reduce((s, r) => s + (parseFloat(r.json.sugar_g) || 0), 0);\n\nconst calPct = Math.round((totalCal / calTarget) * 100);\nconst calBars = Math.min(Math.round((totalCal / calTarget) * 10), 10);\nlet calBar = ''; for (let i = 0; i < 10; i++) calBar += i < calBars ? '\ud83d\udfe9' : '\u2b1c';\n\nconst chatId = $('Telegram Trigger').first().json.message.chat.id;\nconst dateRange = days === 1\n  ? new Date().toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'short' })\n  : `${startDateStr} \u2192 ${today}`;\n\nlet msg = `\ud83d\udcca <b>${periodLabel}</b>\\n<i>${dateRange}</i>\\n\\n`;\nmsg += `\ud83c\udf7d\ufe0f <b>Calories</b>\\n${calBar}\\n`;\nif (days > 1) msg += `Total: <b>${totalCal} kcal</b> | Avg: <b>${Math.round(totalCal/days)} kcal/day</b> (${calPct}%)\\n`;\nelse msg += `${totalCal} / ${calTarget} kcal (${calPct}%)\\n`;\nmsg += `Protein: ${totalProtein}g | Carbs: ${totalCarbs}g | Fat: ${totalFat}g`;\n\nif (days === 1) {\n  const mealList = meals.map(r => `  \u2022 ${r.json.meal_type}: ${r.json.food_items} (${r.json.calories} kcal)`).join('\\n') || '  No meals logged yet';\n  msg += `\\n\\n\ud83e\udd57 <b>Meals (${meals.length})</b>\\n${mealList}`;\n} else {\n  msg += `\\n\\n\ud83e\udd57 <b>Meals logged: ${meals.length}</b> (avg ${(meals.length/days).toFixed(1)}/day)`;\n}\n\nif (totalSugar > 30 * days) msg += `\\n\\n\u26a0\ufe0f High sugar: ${totalSugar}g (limit: ${30 * days}g)`;\n\nreturn [{ json: { reply: msg, chat_id: chatId } }];"
       },
       "id": "build-summary",
       "name": "Build Daily Summary",
@@ -544,7 +544,7 @@
         "chatId": "={{ $json.chat_id }}",
         "text": "={{ $json.reply }}",
         "additionalFields": {
-          "parse_mode": "Markdown",
+          "parse_mode": "HTML",
           "appendAttribution": false
         }
       },
@@ -565,7 +565,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const msg = $input.first().json.message;\nconst foodText = (msg.text || '').replace(/^\\/food\\s*/i, '').trim();\n\nconst prompt = 'You are a nutrition expert. Analyze the following food description and return ONLY valid JSON, no markdown, no explanation.\\n\\nFood description: \"' + foodText + '\"\\n\\nReturn this exact structure:\\n{\\n  \"meal_type\": \"lunch\",\\n  \"items\": [{\"name\": \"Dal Rice\", \"portion\": \"1 bowl\", \"calories\": 350, \"protein\": 12, \"carbs\": 55, \"fat\": 8, \"sugar\": 3, \"fiber\": 6}],\\n  \"totals\": {\"calories\": 350, \"protein\": 12, \"carbs\": 55, \"fat\": 8, \"sugar\": 3, \"fiber\": 6},\\n  \"health_rating\": 4,\\n  \"notes\": \"Brief comment\"\\n}\\n\\nIf the text is not a food description, return:\\n{\"items\": [], \"totals\": {\"calories\": 0, \"protein\": 0, \"carbs\": 0, \"fat\": 0, \"sugar\": 0, \"fiber\": 0}, \"meal_type\": \"unknown\", \"health_rating\": 0, \"notes\": \"Not recognised as food. Type /food [what you ate] or send a photo.\"}';\n\nconst geminiBody = {\n  contents: [{ parts: [{ text: prompt }] }],\n  generationConfig: { temperature: 0.3, maxOutputTokens: 8192 }\n};\n\nreturn [{ json: { geminiBody } }];"
+        "jsCode": "const msg = $input.first().json.message;\nconst foodText = (msg.text || '').replace(/^\\/food\\s*/i, '').trim();\n\nconst prompt = 'You are a nutrition expert. Analyze the following food or drink description and return ONLY valid JSON, no markdown, no explanation.\\n\\nFor meal_type use EXACTLY one of: \"morning_fuel\" (breakfast 6am-11am), \"midday_fuel\" (lunch 11am-3pm), \"evening_fuel\" (dinner 6pm-10pm), \"evening_snack\" (snack/fruits 3pm-6pm), \"beverage\" (coffee, tea, whey protein, juice, energy drink, smoothie).\\n\\nFood/Drink description: \"' + foodText + '\"\\n\\nReturn this exact structure:\\n{\\n  \"meal_type\": \"midday_fuel\",\\n  \"items\": [{\"name\": \"Dal Rice\", \"portion\": \"1 bowl\", \"calories\": 350, \"protein\": 12, \"carbs\": 55, \"fat\": 8, \"sugar\": 3, \"fiber\": 6}],\\n  \"totals\": {\"calories\": 350, \"protein\": 12, \"carbs\": 55, \"fat\": 8, \"sugar\": 3, \"fiber\": 6},\\n  \"health_rating\": 4,\\n  \"notes\": \"Brief comment\"\\n}\\n\\nIf the text is not a food description, return:\\n{\"items\": [], \"totals\": {\"calories\": 0, \"protein\": 0, \"carbs\": 0, \"fat\": 0, \"sugar\": 0, \"fiber\": 0}, \"meal_type\": \"unknown\", \"health_rating\": 0, \"notes\": \"Not recognised as food or drink. Type /food [what you ate/drank] or send a photo.\"}';\n\nconst geminiBody = {\n  contents: [{ parts: [{ text: prompt }] }],\n  generationConfig: { temperature: 0.3, maxOutputTokens: 8192 }\n};\n\nreturn [{ json: { geminiBody } }];"
       },
       "id": "build-text-food",
       "name": "Build Text Food Request",
@@ -579,7 +579,7 @@
     {
       "parameters": {
         "chatId": "={{ $json.message.chat.id }}",
-        "text": "\ud83d\udc4b *Mitra \u2014 Your Daily Companion*\n\n*\ud83c\udf7d\ufe0f Food*\n\u2022 Send a *photo* of your meal\n\u2022 `/food 2 rotis and dal` \u2014 log by text\n\u2022 `/food summary` \u2014 today's food \\+ water\n\n*\ud83d\udca7 Water*\n\u2022 `/water` \u2014 log 1 glass \\(250ml\\)\n\u2022 `/water 2` \u2014 log 2 glasses\n\u2022 `/water summary` \u2014 today's water intake\n\n*\ud83d\udcc4 Resume*\n\u2022 `/resume [paste JD]` \u2014 generate ATS\\-optimised PDF resume\n\u2022 Or paste any JD text \\(200\\+ chars\\) directly\n\n_Targets: 2000 kcal \u00b7 3000ml water_",
+        "text": "\ud83d\udc4b *Mitra \u2014 Your Daily Companion*\n\n*\ud83c\udf7d\ufe0f Food \\& Drinks*\n\u2022 Send a *photo* of your meal or drink\n\u2022 `/food 2 rotis and dal` \u2014 log meal by text\n\u2022 `/food whey protein shake` \u2014 log beverage\n\u2022 `/food summary` \u2014 today's food \\+ water\n\u2022 `/food weekly` / `/food monthly` \u2014 trends\n\n\ud83c\udff7\ufe0f *Categories:* morning\\_fuel \\| midday\\_fuel \\| evening\\_fuel \\| evening\\_snack \\| beverage\n\n*\ud83d\udca7 Water*\n\u2022 `/water` \u2014 log 1 glass \\(250ml\\)\n\u2022 `/water 2` \u2014 log 2 glasses\n\u2022 `/water summary` \u2014 today's water intake\n\n*\u2696\ufe0f Weight*\n\u2022 `/weight 75\\.5` \u2014 log today's weight\n\u2022 `/weight summary week` \u2014 weekly trend\n\u2022 `/weight summary month` \u2014 monthly analysis\n\n*\ud83d\udcc4 Resume*\n\u2022 `/resume [paste JD]` \u2014 generate ATS\\-optimised PDF resume\n\u2022 Or paste any JD text \\(200\\+ chars\\) directly\n\n_Targets: 2000 kcal \u00b7 3000ml water_",
         "additionalFields": {
           "parse_mode": "Markdown",
           "appendAttribution": false
@@ -1224,6 +1224,87 @@
           "name": "Mitra Telegram Bot"
         }
       }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": false,
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "w1",
+              "leftValue": "={{ $json.message.text || '' }}",
+              "rightValue": "/weight",
+              "operator": {
+                "type": "string",
+                "operation": "startsWith",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "weight-check",
+      "name": "Weight Check",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        660,
+        1060
+      ]
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "ai-resume-telegram-001",
+          "mode": "id"
+        },
+        "options": {}
+      },
+      "id": "call-resume-builder",
+      "name": "Call Resume Builder",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.1,
+      "position": [
+        660,
+        900
+      ]
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "mitra-weight-tracker-001",
+          "mode": "id"
+        },
+        "options": {}
+      },
+      "id": "call-weight-tracker",
+      "name": "Call Weight Tracker",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.1,
+      "position": [
+        880,
+        1060
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "append"
+      },
+      "id": "merge-meals",
+      "name": "Merge Meals Data",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3,
+      "position": [
+        1320,
+        180
+      ]
     }
   ],
   "connections": {
@@ -1357,9 +1438,9 @@
       "main": [
         [
           {
-            "node": "Build Daily Summary",
+            "node": "Merge Meals Data",
             "type": "main",
-            "index": 0
+            "index": 1
           }
         ]
       ]
@@ -1505,6 +1586,11 @@
             "node": "Read Meals Today",
             "type": "main",
             "index": 0
+          },
+          {
+            "node": "Merge Meals Data",
+            "type": "main",
+            "index": 0
           }
         ],
         [
@@ -1520,12 +1606,18 @@
       "main": [
         [
           {
-            "node": "Parse Resume",
+            "node": "Call Resume Builder",
             "type": "main",
             "index": 0
           }
         ],
-        []
+        [
+          {
+            "node": "Weight Check",
+            "type": "main",
+            "index": 0
+          }
+        ]
       ]
     },
     "Parse Resume": {
@@ -1617,6 +1709,35 @@
         [
           {
             "node": "Resume Send PDF",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Weight Check": {
+      "main": [
+        [
+          {
+            "node": "Call Weight Tracker",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Send Help",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge Meals Data": {
+      "main": [
+        [
+          {
+            "node": "Build Daily Summary",
             "type": "main",
             "index": 0
           }
