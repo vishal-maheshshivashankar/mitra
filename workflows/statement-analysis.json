@@ -1,0 +1,352 @@
+{
+  "name": "Mitra - Statement Analysis",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "stmt-trigger",
+      "name": "Execute Workflow Trigger",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1,
+      "position": [220, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "const msg = $input.first().json.message || {};\nconst chatId = msg.chat?.id;\nconst text = (msg.text || '').trim();\nconst cmd = text.replace(/^\\/statement\\s*/i, '').trim().toLowerCase();\n\nconst monthNames = ['january','february','march','april','may','june','july','august','september','october','november','december'];\nconst monthShort = ['jan','feb','mar','apr','may','jun','jul','aug','sep','oct','nov','dec'];\n\nconst now = new Date();\nconst todayStr = now.toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });\n\nlet startDate, endDate, periodLabel;\nlet matchedMonth = -1;\nlet matchedYear = null;\n\nconst yearMatch = cmd.match(/\\b(20\\d{2})\\b/);\nif (yearMatch) matchedYear = parseInt(yearMatch[1]);\n\nfor (let i = 0; i < 12; i++) {\n  if (cmd.includes(monthNames[i]) || cmd.includes(monthShort[i])) {\n    matchedMonth = i; break;\n  }\n}\n\nif (matchedMonth >= 0) {\n  const year = matchedYear || now.getFullYear();\n  startDate = `${year}-${String(matchedMonth + 1).padStart(2, '0')}-01`;\n  const lastDay = new Date(year, matchedMonth + 1, 0).getDate();\n  endDate = `${year}-${String(matchedMonth + 1).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;\n  const name = monthNames[matchedMonth];\n  periodLabel = `${name.charAt(0).toUpperCase() + name.slice(1)} ${year}`;\n} else if (/last\\s*(1\\s*)?week|past\\s*week|7\\s*days/.test(cmd)) {\n  const d = new Date(now); d.setDate(d.getDate() - 7);\n  startDate = d.toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });\n  endDate = todayStr; periodLabel = 'Last 7 Days';\n} else if (/last\\s*(1\\s*)?month|past\\s*month|30\\s*days/.test(cmd)) {\n  const d = new Date(now); d.setDate(d.getDate() - 30);\n  startDate = d.toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });\n  endDate = todayStr; periodLabel = 'Last 30 Days';\n} else if (cmd.includes('this month')) {\n  startDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`;\n  endDate = todayStr; periodLabel = 'This Month';\n} else if (cmd.includes('today')) {\n  startDate = todayStr; endDate = todayStr; periodLabel = 'Today';\n} else {\n  const d = new Date(now); d.setDate(d.getDate() - 30);\n  startDate = d.toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });\n  endDate = todayStr; periodLabel = 'Last 30 Days';\n}\n\nlet accountType = 'both';\nif (/credit\\s*card|creditcard|\\bcc\\b/.test(cmd)) {\n  accountType = 'credit';\n} else if (/saving|\\bsa\\b/.test(cmd)) {\n  accountType = 'savings';\n}\n\nlet accountNameFilter = '';\nconst bankMatch = cmd.match(/\\b(hdfc|icici|sbi|axis|kotak|yes\\s*bank|rbl|idfc|bob|pnb|canara|federal|indusind|citi|au\\s*(?:bank|sf)?)\\b/i);\nif (bankMatch) accountNameFilter = bankMatch[1].trim();\n\nreturn [{ json: { chatId, accountType, accountNameFilter, startDate, endDate, periodLabel, rawCmd: cmd } }];"
+      },
+      "id": "stmt-parse",
+      "name": "Parse Statement Command",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [440, 300]
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $json.chatId }}",
+        "text": "={{ '📊 Fetching statement data...\\n\\nPeriod: ' + $json.periodLabel + '\\nAccount: ' + ($json.accountType === 'both' ? 'All Accounts' : $json.accountType === 'credit' ? 'Credit Card' : 'Savings Account') + ($json.accountNameFilter ? '\\nFilter: ' + $json.accountNameFilter : '') }}",
+        "additionalFields": {
+          "appendAttribution": false
+        }
+      },
+      "id": "stmt-ack",
+      "name": "Send Statement Ack",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [660, 80],
+      "credentials": {
+        "telegramApi": {
+          "id": "61YafmlNQxmiGwcT",
+          "name": "Mitra Telegram Bot"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "read",
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{ $env.STATEMENT_SPREADSHEET_ID }}"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "BankSavingsLedger"
+        },
+        "options": {},
+        "authentication": "serviceAccount"
+      },
+      "id": "stmt-read-savings",
+      "name": "Read BankSavingsLedger",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [660, 360],
+      "credentials": {
+        "googleApi": {
+          "id": "fa9414e1-1db7-446e-94a2-2ffeb782e5d6",
+          "name": "Mitra Google SA"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "read",
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{ $env.STATEMENT_SPREADSHEET_ID }}"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "CreditCardLedger"
+        },
+        "options": {},
+        "authentication": "serviceAccount"
+      },
+      "id": "stmt-read-cc",
+      "name": "Read CreditCardLedger",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [660, 560],
+      "credentials": {
+        "googleApi": {
+          "id": "fa9414e1-1db7-446e-94a2-2ffeb782e5d6",
+          "name": "Mitra Google SA"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "append"
+      },
+      "id": "stmt-merge",
+      "name": "Merge All Transactions",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3,
+      "position": [880, 460]
+    },
+    {
+      "parameters": {
+        "jsCode": "const params = $('Parse Statement Command').first().json;\nconst { accountType, accountNameFilter, startDate, endDate, periodLabel, chatId } = params;\n\n// Tag rows by source sheet\nconst allRows = $input.all().map(item => {\n  const row = { ...item.json };\n  row._sheet = (row.statementYear !== undefined && row.statementYear !== null && String(row.statementYear).trim() !== '') ? 'credit' : 'savings';\n  return row;\n});\n\n// Filter by account type\nlet filtered = allRows;\nif (accountType === 'credit') filtered = allRows.filter(r => r._sheet === 'credit');\nelse if (accountType === 'savings') filtered = allRows.filter(r => r._sheet === 'savings');\n\n// Filter by account/bank name\nif (accountNameFilter) {\n  const fl = accountNameFilter.toLowerCase();\n  filtered = filtered.filter(r =>\n    (r.accountName || '').toLowerCase().includes(fl) ||\n    (r.bankName || '').toLowerCase().includes(fl)\n  );\n}\n\n// Filter by date range\nfiltered = filtered.filter(r => {\n  const year = parseInt(r.transactionYear);\n  const month = parseInt(r.transactionMonth);\n  const day = parseInt(r.transactionDay);\n  if (isNaN(year) || isNaN(month) || isNaN(day)) return false;\n  const rowDate = `${year}-${String(month).padStart(2,'0')}-${String(day).padStart(2,'0')}`;\n  return rowDate >= startDate && rowDate <= endDate;\n});\n\nif (filtered.length === 0) {\n  return [{ json: { chatId, geminiBody: null, noData: true, periodLabel, accountType, transactionCount: 0, totalDebit: 0, totalCredit: 0 } }];\n}\n\n// Totals\nconst amt = r => parseFloat(r.amount) || 0;\nconst isDebit = r => (r.creditDebit || '').toLowerCase() === 'debit';\nconst isCredit = r => (r.creditDebit || '').toLowerCase() === 'credit';\nconst totalDebit = filtered.filter(isDebit).reduce((s, r) => s + amt(r), 0);\nconst totalCredit = filtered.filter(isCredit).reduce((s, r) => s + amt(r), 0);\n\n// Aggregate by category (spend only)\nconst catMap = {};\nfiltered.filter(isDebit).forEach(r => {\n  const cat = (r.category || 'Uncategorized').trim();\n  if (!catMap[cat]) catMap[cat] = { debit: 0, count: 0, subs: {} };\n  catMap[cat].debit += amt(r);\n  catMap[cat].count++;\n  const sub = (r.subCategory || '').trim();\n  if (sub) { catMap[cat].subs[sub] = (catMap[cat].subs[sub] || 0) + amt(r); }\n});\nconst catList = Object.entries(catMap)\n  .sort((a, b) => b[1].debit - a[1].debit)\n  .map(([cat, s]) => {\n    const topSubs = Object.entries(s.subs).sort((a,b)=>b[1]-a[1]).slice(0,3)\n      .map(([k,v])=>`${k}: ₹${v.toFixed(0)}`).join(', ');\n    return `${cat}: ₹${s.debit.toFixed(0)} (${s.count} txns)${topSubs ? ' [' + topSubs + ']' : ''}`;\n  });\n\n// Aggregate by account\nconst accMap = {};\nfiltered.forEach(r => {\n  const key = `${r.bankName || 'Unknown'} / ${r.accountName || 'Unknown'} (${r._sheet === 'credit' ? 'CC' : 'Savings'})`;\n  if (!accMap[key]) accMap[key] = { debit: 0, credit: 0, count: 0 };\n  accMap[key].count++;\n  if (isDebit(r)) accMap[key].debit += amt(r);\n  else accMap[key].credit += amt(r);\n});\nconst accList = Object.entries(accMap)\n  .sort((a, b) => b[1].debit - a[1].debit)\n  .map(([acc, s]) => `${acc}: Out ₹${s.debit.toFixed(0)}, In ₹${s.credit.toFixed(0)}, ${s.count} txns`);\n\n// Top 15 debit transactions\nconst topDebits = filtered.filter(isDebit)\n  .sort((a, b) => amt(b) - amt(a)).slice(0, 15)\n  .map(r => `₹${amt(r).toFixed(0)} - ${(r.description || '').substring(0,60)} (${r.transactionDate || ''}, ${r.category || ''})`);\n\n// Monthly spend trend (by week or by sub-period)\nconst weekMap = {};\nfiltered.filter(isDebit).forEach(r => {\n  const day = parseInt(r.transactionDay) || 1;\n  const week = `Week ${Math.ceil(day/7)}`;\n  weekMap[week] = (weekMap[week] || 0) + amt(r);\n});\nconst weekTrend = Object.entries(weekMap).sort((a,b)=>a[0].localeCompare(b[0]))\n  .map(([w,v])=>`${w}: ₹${v.toFixed(0)}`).join(' | ');\n\nconst accountLabel = accountType === 'both' ? 'All Accounts (Savings + CC)'\n  : accountType === 'credit' ? 'Credit Card Only' : 'Savings Account Only';\n\nconst prompt = `You are a personal finance analyst. Analyze this pre-aggregated ${periodLabel} transaction data and give a thorough, insightful analysis.\\n\\nACCOUNT FILTER: ${accountLabel}${accountNameFilter ? ' | ' + accountNameFilter : ''}\\nTOTAL TRANSACTIONS: ${filtered.length}\\nTOTAL SPENT (Debits): ₹${totalDebit.toFixed(2)}\\nTOTAL RECEIVED (Credits): ₹${totalCredit.toFixed(2)}\\nNET: ₹${(totalCredit - totalDebit).toFixed(2)}\\n\\nSPEND BY CATEGORY (all ${catList.length} categories, sorted by spend):\\n${catList.join('\\n')}\\n\\nACCOUNT-WISE BREAKDOWN:\\n${accList.join('\\n')}\\n\\nTOP 15 TRANSACTIONS BY AMOUNT:\\n${topDebits.join('\\n')}\\n\\nWEEKLY SPEND TREND:\\n${weekTrend}\\n\\nWrite a thorough plain text analysis (no markdown symbols like * _ # etc). Use these exact emoji section headers:\\n\\n📊 Summary\\n(Overall spend, income, net, and what it means)\\n\\n🏷️ Category Breakdown\\n(ALL categories with amounts and % of total spend, highlight top spenders)\\n\\n🏦 Account-wise Breakdown\\n(Each account's spend vs income)\\n\\n🔍 Top Transactions\\n(Notable large spends, any recurring patterns)\\n\\n📈 Spending Patterns\\n(Weekly trend, recurring merchants, habits)\\n\\n💡 Recommendations\\n(3-4 specific actionable tips based on the actual data)\\n\\nBe specific with rupee amounts. No filler text. Total response must fit in 4000 characters.`;\n\nreturn [{ json: {\n  chatId, noData: false, periodLabel,\n  transactionCount: filtered.length, totalDebit, totalCredit,\n  geminiBody: {\n    contents: [{ parts: [{ text: prompt }] }],\n    generationConfig: { temperature: 0.1, maxOutputTokens: 4096 }\n  }\n}}];"
+      },
+      "id": "stmt-filter",
+      "name": "Filter & Build Gemini Prompt",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1100, 460]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": false,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "no-data-c1",
+              "leftValue": "={{ $json.noData }}",
+              "operator": {
+                "type": "boolean",
+                "operation": "true"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "stmt-no-data-check",
+      "name": "No Data?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [1320, 460]
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $json.chatId }}",
+        "text": "={{ '📭 No transactions found for ' + $json.periodLabel + '\\n\\nExamples:\\n• /statement last month\\n• /statement march credit card\\n• /statement this month savings\\n• /statement last week HDFC\\n• /statement march 2025' }}",
+        "additionalFields": {
+          "appendAttribution": false
+        }
+      },
+      "id": "stmt-no-data-reply",
+      "name": "Send No Data Reply",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [1540, 280],
+      "credentials": {
+        "telegramApi": {
+          "id": "61YafmlNQxmiGwcT",
+          "name": "Mitra Telegram Bot"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={{ $env.GEMINI_API_KEY }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ $json.geminiBody }}",
+        "options": {
+          "timeout": 60000
+        }
+      },
+      "id": "stmt-gemini",
+      "name": "Gemini Statement Analysis",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1540, 600]
+    },
+    {
+      "parameters": {
+        "jsCode": "const geminiResponse = $input.first().json;\nconst fd = $('Filter & Build Gemini Prompt').first().json;\n\nlet analysisText = '';\nif (geminiResponse.candidates && geminiResponse.candidates[0]) {\n  const parts = geminiResponse.candidates[0].content?.parts;\n  if (parts && parts[0]) analysisText = parts[0].text || '';\n}\n\nif (!analysisText) analysisText = 'Could not generate analysis. Please try again.';\n\n// Strip markdown symbols that break Telegram plain-text sends\nanalysisText = analysisText.replace(/[*_`\\[\\]]/g, '');\n\nconst debitStr = '₹' + fd.totalDebit.toFixed(0);\nconst creditStr = '₹' + fd.totalCredit.toFixed(0);\nconst header = `📊 Statement Analysis — ${fd.periodLabel}\\n${fd.transactionCount} transactions | Out: ${debitStr} | In: ${creditStr}\\n${'-'.repeat(32)}\\n`;\n\nconst LIMIT = 4096;\nconst fullMessage = header + analysisText;\n\n// Split into chunks of max 4096 chars, breaking at newlines where possible\nconst chunks = [];\nlet remaining = fullMessage;\nwhile (remaining.length > 0) {\n  if (remaining.length <= LIMIT) {\n    chunks.push(remaining);\n    break;\n  }\n  // Find last newline before limit\n  let cutAt = remaining.lastIndexOf('\\n', LIMIT - 1);\n  if (cutAt <= 0) cutAt = LIMIT - 1;\n  chunks.push(remaining.substring(0, cutAt));\n  remaining = remaining.substring(cutAt + 1).trimStart();\n}\n\n// Return one item per chunk so n8n sends them sequentially\nreturn chunks.map(chunk => ({ json: { chatId: fd.chatId, reply: chunk } }));"
+      },
+      "id": "stmt-parse-response",
+      "name": "Parse Gemini Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1760, 600]
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $json.chatId }}",
+        "text": "={{ $json.reply }}",
+        "additionalFields": {
+          "appendAttribution": false
+        }
+      },
+      "id": "stmt-send",
+      "name": "Send Statement Analysis",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [1980, 600],
+      "credentials": {
+        "telegramApi": {
+          "id": "61YafmlNQxmiGwcT",
+          "name": "Mitra Telegram Bot"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Execute Workflow Trigger": {
+      "main": [
+        [
+          {
+            "node": "Parse Statement Command",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Statement Command": {
+      "main": [
+        [
+          {
+            "node": "Send Statement Ack",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Read BankSavingsLedger",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Read CreditCardLedger",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read BankSavingsLedger": {
+      "main": [
+        [
+          {
+            "node": "Merge All Transactions",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read CreditCardLedger": {
+      "main": [
+        [
+          {
+            "node": "Merge All Transactions",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Merge All Transactions": {
+      "main": [
+        [
+          {
+            "node": "Filter & Build Gemini Prompt",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filter & Build Gemini Prompt": {
+      "main": [
+        [
+          {
+            "node": "No Data?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "No Data?": {
+      "main": [
+        [
+          {
+            "node": "Send No Data Reply",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Gemini Statement Analysis",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gemini Statement Analysis": {
+      "main": [
+        [
+          {
+            "node": "Parse Gemini Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Gemini Response": {
+      "main": [
+        [
+          {
+            "node": "Send Statement Analysis",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "tags": [
+    {
+      "name": "mitra"
+    }
+  ],
+  "active": false,
+  "id": "mitra-statement-analysis-001"
+}

@@ -579,7 +579,7 @@
     {
       "parameters": {
         "chatId": "={{ $json.message.chat.id }}",
-        "text": "\ud83d\udc4b *Mitra \u2014 Your Daily Companion*\n\n*\ud83c\udf7d\ufe0f Food \\& Drinks*\n\u2022 Send a *photo* of your meal or drink\n\u2022 `/food 2 rotis and dal` \u2014 log meal by text\n\u2022 `/food whey protein shake` \u2014 log beverage\n\u2022 `/food summary` \u2014 today's food \\+ water\n\u2022 `/food weekly` / `/food monthly` \u2014 trends\n\n\ud83c\udff7\ufe0f *Categories:* morning\\_fuel \\| midday\\_fuel \\| evening\\_fuel \\| evening\\_snack \\| beverage\n\n*\ud83d\udca7 Water*\n\u2022 `/water` \u2014 log 1 glass \\(250ml\\)\n\u2022 `/water 2` \u2014 log 2 glasses\n\u2022 `/water summary` \u2014 today's water intake\n\n*\u2696\ufe0f Weight*\n\u2022 `/weight 75\\.5` \u2014 log today's weight\n\u2022 `/weight summary week` \u2014 weekly trend\n\u2022 `/weight summary month` \u2014 monthly analysis\n\n*\ud83d\udcc4 Resume*\n\u2022 `/resume [paste JD]` \u2014 generate ATS\\-optimised PDF resume\n\u2022 Or paste any JD text \\(200\\+ chars\\) directly\n\n_Targets: 2000 kcal \u00b7 3000ml water_",
+        "text": "\ud83d\udc4b *Mitra \u2014 Your Daily Companion*\n\n*\ud83c\udf7d\ufe0f Food \\& Drinks*\n\u2022 Send a *photo* of your meal or drink\n\u2022 `/food 2 rotis and dal` \u2014 log meal by text\n\u2022 `/food whey protein shake` \u2014 log beverage\n\u2022 `/food summary` \u2014 today's food \\+ water\n\u2022 `/food weekly` / `/food monthly` \u2014 trends\n\n\ud83c\udff7\ufe0f *Categories:* morning\\_fuel \\| midday\\_fuel \\| evening\\_fuel \\| evening\\_snack \\| beverage\n\n*\ud83d\udca7 Water*\n\u2022 `/water` \u2014 log 1 glass \\(250ml\\)\n\u2022 `/water 2` \u2014 log 2 glasses\n\u2022 `/water summary` \u2014 today's water intake\n\n*\u2696\ufe0f Weight*\n\u2022 `/weight 75\\.5` \u2014 log today's weight\n\u2022 `/weight summary week` \u2014 weekly trend\n\u2022 `/weight summary month` \u2014 monthly analysis\n\n*\ud83d\udcc4 Resume*\n\u2022 `/resume [paste JD]` \u2014 generate ATS\\-optimised PDF resume\n\u2022 Or paste any JD text \\(200\\+ chars\\) directly\n\n*\ud83d\udcb3 Statement Analysis*\n\u2022 `/statement last month` \u2014 all accounts last 30 days\n\u2022 `/statement march credit card` \u2014 March CC analysis\n\u2022 `/statement this month savings` \u2014 savings this month\n\u2022 `/statement last week HDFC` \u2014 filter by bank name\n\u2022 `/statement march 2025` \u2014 specific month \\+ year\n\n_Targets: 2000 kcal \u00b7 3000ml water_",
         "additionalFields": {
           "parse_mode": "Markdown",
           "appendAttribution": false
@@ -1305,6 +1305,57 @@
         1320,
         180
       ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": false,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "st1",
+              "leftValue": "={{ $json.message.text || '' }}",
+              "rightValue": "/statement",
+              "operator": {
+                "type": "string",
+                "operation": "startsWith",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "statement-check",
+      "name": "Statement Check",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        880,
+        1220
+      ]
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "mitra-statement-analysis-001",
+          "mode": "id"
+        },
+        "options": {}
+      },
+      "id": "call-statement-analyzer",
+      "name": "Call Statement Analyzer",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.1,
+      "position": [
+        1100,
+        1220
+      ]
     }
   ],
   "connections": {
@@ -1720,6 +1771,24 @@
         [
           {
             "node": "Call Weight Tracker",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Statement Check",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Statement Check": {
+      "main": [
+        [
+          {
+            "node": "Call Statement Analyzer",
             "type": "main",
             "index": 0
           }
